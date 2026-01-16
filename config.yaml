@@ -1,0 +1,105 @@
+# JIM Configuration File
+# Copy this file and modify for each route calculation
+
+# Display viewport (NW corner to SE corner)
+screen: "53*00'N 11*30'W 37*00'N 0*0'W"
+
+# Path to database directory containing charts, tides, etc.
+dataRoot: "./database/"
+
+# Wind data source
+wind:
+  source: "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/"
+  resolution: "1p00"  # Options: 1p00, 0p50, 0p25
+
+# Feature toggles
+features:
+  useWater: true
+  crossDateLine: false
+  useIceZone: false
+
+# World Vector Shoreline resolution (higher = slower but more detailed)
+wvsResolution: 100000  # Options: 100000, 250000
+
+# Chart display offsets (in arc-seconds)
+chartOffset:
+  x: 0   # positive moves chart right
+  y: 0   # positive moves chart up
+
+# Longitude bounds for shoreline database
+longitudeBounds:
+  min: -20
+  max: 0
+
+# Course-to-Steer (C2S) algorithm settings
+c2s:
+  numberOfFixes: 80           # Measurement points (bigger = slower)
+  searchTolerance: 100        # Meters (10 for Virtual Regatta)
+  searchPeriodHours: 5        # How far along JIM that C2S places initial destination
+  legs: 8                     # Number of legs in C2S solution
+  agentsPerLeg: 10            # Differential Evolution agents per leg
+  crossoverProbability: 0.9   # DE crossover probability
+
+# Polar settings
+polar:
+  sparse: false
+  highWindOnly: false         # Model inability to sail in low wind (sails flapping)
+
+# Algorithm settings
+algorithm:
+  expandingTimeFactor: 30
+  routeAspectRatio: 1.0
+  continuousFactor: 0.3       # Factor for continuous search in DE
+  showRouteResolution: false  # false = scales with screen resolution
+  useDifferentialEvolution: false
+  jimCutoffHours: 100
+  prevailingTransitionDays: 15
+
+# Display settings
+display:
+  fontSize: 30
+  waveWarningMeters: 3
+
+# Replay file (leave empty for live calculation)
+replay: ""
+
+# Route definition
+# This section changes for each voyage calculation
+route:
+  # Boat polar performance data
+  polar: "ELEMENTAL"
+
+  # Weather and environmental data files
+  using:
+    - type: "Wind"
+      file: "GFS20251124180601678.grb"
+    - type: "Wind"
+      file: "GFS20251124180601679.grb"
+    - type: "Tide"
+      file: "tide20251124.nc"
+    - type: "Waves"
+      file: "GFS20251124180601680.grb"
+
+  # Departure point and time
+  depart:
+    position: "50*34'39\"N 002*24'26\"W"
+    time: "2025/11/25 15:00 UTC"
+
+  # Initial expansion parameters
+  expand:
+    distance: "20 nm"
+    bins: 360
+    stepHours: 0.1
+
+  # Areas to avoid (list of polygon coordinates with optional name)
+  obstructions:
+    - name: "Mid Channel"
+      polygon: "49*46'15\"N 002*50'15\"W;50*03'31\"N 002*57'22\"W;50*08'34\"N 002*28'14\"W;49*51'17\"N 002*21'03\"W;49*46'15\"N 002*50'15\"W"
+
+  # Destination
+  destination:
+    position: "49*40'24\"N 001*39'24\"W"
+    radius: "0.2 nm"
+    bins: 360
+    binSize: "1 nm"
+    stepHours: 0.1
