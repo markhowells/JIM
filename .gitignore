@@ -1,6 +1,7 @@
 # Compiled class files
 *.class
 out/
+target/
 
 # IDE files
 .idea/
@@ -11,7 +12,9 @@ database/
 
 # Package files
 *.jar
-!jar/netcdfAll-5.8.0.jar
+
+# Local JAR folder (dependencies now managed by Maven)
+jar/
 
 # OS generated files
 .DS_Store
