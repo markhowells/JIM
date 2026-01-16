@@ -11,6 +11,8 @@ import ucar.nc2.NetcdfFile;
 import ucar.nc2.Variable;
 import ucar.nc2.units.DateUnit;
 import ucar.units.UnitException;
+import uk.co.sexeys.jgribx.GribFile;
+import uk.co.sexeys.jgribx.GribRecord;
 
 import uk.co.sexeys.Main;
 import uk.co.sexeys.Vector2;
@@ -121,8 +123,160 @@ public class SailDocs extends Wind{
         return SOURCE.LATEST;
     }
 
+    /**
+     * Read wind records from a file, auto-detecting format by extension.
+     */
     private List<Record> readRecords(String file) {
-        List<Record> records = new ArrayList<>();;
+        String lowerFile = file.toLowerCase();
+        if (lowerFile.endsWith(".grb") || lowerFile.endsWith(".grib") || lowerFile.endsWith(".grib2")) {
+            return readGribRecords(file);
+        } else {
+            return readNetCDFRecords(file);
+        }
+    }
+
+    /**
+     * Read wind records from GRIB file using jgribx library.
+     */
+    private List<Record> readGribRecords(String file) {
+        List<Record> records = new ArrayList<>();
+        try {
+            FileInputStream in = new FileInputStream(file);
+            GribFile gribFile = new GribFile(in);
+            List<GribRecord> gribRecords = gribFile.getRecords();
+
+            // Group records by forecast time to pair U and V components
+            Map<Long, Record> recordsByTime = new HashMap<>();
+
+            for (GribRecord gribRecord : gribRecords) {
+                String paramCode = gribRecord.getParameterCode();
+                long forecastTime = gribRecord.getForecastTime().getTimeInMillis();
+
+                // Get or create record for this time
+                Record record = recordsByTime.get(forecastTime);
+                if (record == null) {
+                    record = new Record();
+                    record.time = forecastTime;
+                    record.stride = gribRecord.getStride();
+                    record.left = (float) gribRecord.getMinimumLongitude();
+                    record.right = (float) gribRecord.getMaximumLongitude();
+                    record.bottom = (float) gribRecord.getMinimumLatitude();
+                    record.top = (float) gribRecord.getMaximumLatitude();
+                    recordsByTime.put(forecastTime, record);
+                }
+
+                // Match by parameter code (most reliable for GRIB2)
+                if (paramCode != null) {
+                    if (paramCode.equalsIgnoreCase("UGRD")) {
+                        record.u = gribRecord.getValues();
+                    } else if (paramCode.equalsIgnoreCase("VGRD")) {
+                        record.v = gribRecord.getValues();
+                    }
+                }
+            }
+            in.close();
+
+            // Process complete records (those with both U and V)
+            for (Record record : recordsByTime.values()) {
+                if (record.u == null || record.v == null) {
+                    System.out.println("Warning: Incomplete wind record (missing U or V component) at time " + record.time);
+                    continue;
+                }
+                if (record.u.length != record.v.length) {
+                    System.out.println("U and V length not equal for some reason. Skipping record.");
+                    continue;
+                }
+
+                // Handle latitude ordering if needed
+                if (record.top < record.bottom) {
+                    float[] temp = new float[record.u.length];
+                    int i = 0;
+                    int rowEnd = record.u.length;
+                    int rowStart = rowEnd - record.stride;
+                    do {
+                        for (int j = rowStart; j < rowEnd; j++) {
+                            temp[i++] = record.u[j];
+                        }
+                        rowEnd -= record.stride;
+                        rowStart -= record.stride;
+                    } while (i < record.u.length);
+                    record.u = temp;
+                    temp = new float[record.v.length];
+                    i = 0;
+                    rowEnd = record.v.length;
+                    rowStart = rowEnd - record.stride;
+                    do {
+                        for (int j = rowStart; j < rowEnd; j++) {
+                            temp[i++] = record.v[j];
+                        }
+                        rowEnd -= record.stride;
+                        rowStart -= record.stride;
+                    } while (i < record.v.length);
+                    record.v = temp;
+                    float tempTop = record.top;
+                    record.top = record.bottom;
+                    record.bottom = tempTop;
+                }
+
+                // Handle longitude wrapping if needed
+                if (record.right > 180) {
+                    float[] temp = new float[record.u.length];
+                    int i = 0;
+                    int rowEnd = record.stride;
+                    int midRow = record.stride / 2;
+                    int rowStart = 0;
+                    do {
+                        for (int j = midRow; j < rowEnd; j++) {
+                            temp[i++] = record.u[j];
+                        }
+                        for (int j = rowStart; j < midRow; j++) {
+                            temp[i++] = record.u[j];
+                        }
+                        rowEnd += record.stride;
+                        midRow += record.stride;
+                        rowStart += record.stride;
+                    } while (i < temp.length);
+                    record.u = temp;
+                    temp = new float[record.v.length];
+                    i = 0;
+                    rowEnd = record.stride;
+                    midRow = record.stride / 2;
+                    rowStart = 0;
+                    do {
+                        for (int j = midRow; j < rowEnd; j++) {
+                            temp[i++] = record.v[j];
+                        }
+                        for (int j = rowStart; j < midRow; j++) {
+                            temp[i++] = record.v[j];
+                        }
+                        rowEnd += record.stride;
+                        midRow += record.stride;
+                        rowStart += record.stride;
+                    } while (i < temp.length);
+                    record.v = temp;
+                    record.left = -180;
+                    record.right = 180;
+                }
+
+                record.fx = (record.stride - 1) / (record.right - record.left);
+                record.fy = ((float) record.u.length / record.stride - 1) / (record.top - record.bottom);
+                records.add(record);
+            }
+
+        } catch (FileNotFoundException e) {
+            System.out.println(file + " not found on disk. Skipping...");
+        } catch (Exception e) {
+            System.err.println("Error reading GRIB wind file: " + file);
+            e.printStackTrace();
+        }
+        return records;
+    }
+
+    /**
+     * Read wind records from NetCDF file (original implementation).
+     */
+    private List<Record> readNetCDFRecords(String file) {
+        List<Record> records = new ArrayList<>();
         NetcdfFile ncfile = null;
         try {
             ncfile = NetcdfFile.open(file);
@@ -279,6 +433,13 @@ public class SailDocs extends Wind{
             List<Record> records = this.readRecords(file);
             dataAL.addAll(records);
         }
+
+        if (dataAL.isEmpty()) {
+            System.err.println("ERROR: No valid wind records found in GRIB files!");
+            System.err.println("Check that your GRIB files contain U and V wind components.");
+            System.exit(-1);
+        }
+
         Collections.sort(dataAL);
         long lastTime = 0;
         for (Record r: dataAL) {
@@ -325,5 +486,3 @@ public class SailDocs extends Wind{
         return SOURCE.PREVAILING;
     }
 }
-
-

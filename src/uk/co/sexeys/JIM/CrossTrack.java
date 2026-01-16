@@ -235,7 +235,7 @@ public class CrossTrack extends JIM{
             positionDegrees.x = a.position.x * phys.degrees;
             positionDegrees.y = a.position.y * phys.degrees;
             Wind.SOURCE windSource = wind.getValue(positionDegrees, a.time, a.wind);
-            Water.SOURCE waterSource;
+            Water.SOURCE waterSource = null;
             if( Main.useWater)
                 waterSource = tide.getValue(positionDegrees, a.time, a.tide);
             a.wind.minus(a.tide, tidalWind);

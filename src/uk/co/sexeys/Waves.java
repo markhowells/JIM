@@ -8,9 +8,12 @@ import ucar.nc2.NetcdfFile;
 import ucar.nc2.Variable;
 import ucar.nc2.units.DateUnit;
 import ucar.units.UnitException;
+import uk.co.sexeys.jgribx.GribFile;
+import uk.co.sexeys.jgribx.GribRecord;
 
 import java.awt.*;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
@@ -117,7 +120,7 @@ public class Waves {
         return (float) (a * A + b * j);
     }
 
-    Waves(long time) { // No waaves
+    Waves(long time) { // No waves
         Calendar refTime = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
         refTime.setTimeInMillis(time);
         Calendar endTime = (Calendar) refTime.clone();
@@ -129,16 +132,88 @@ public class Waves {
         data = dataAL.toArray(new Record[0]);
     }
 
-    Waves(List<String> files) {// List of tide files (without extension)
+    Waves(List<String> files) {// List of wave files
         final ArrayList<Record> dataAL = new ArrayList<>();
         for (String f : files) {
-//            System.out.print("\r" + f);
-            ReadFile(f, dataAL);
+            if (f.toLowerCase().endsWith(".grb") || f.toLowerCase().endsWith(".grib") || f.toLowerCase().endsWith(".grib2")) {
+                ReadGribFile(f, dataAL);
+            } else {
+                ReadNetCDFFile(f, dataAL);
+            }
         }
+        // Sort by time
+        dataAL.sort(Comparator.comparingLong(r -> r.time));
         data = dataAL.toArray(new Record[0]);
     }
 
-    void ReadFile(String file, ArrayList<Record> data) {
+    /**
+     * Read wave data from GRIB file using jgribx library.
+     * Looks for significant wave height parameter.
+     */
+    void ReadGribFile(String file, ArrayList<Record> data) {
+        try {
+            FileInputStream in = new FileInputStream(file);
+            GribFile gribFile = new GribFile(in);
+            List<Calendar> forecastTimes = gribFile.getForecastTimes();
+            List<GribRecord> gribRecords = gribFile.getRecords();
+
+            for (GribRecord gribRecord : gribRecords) {
+                // Parameter 100 is typically significant wave height in GRIB2
+                // Parameter 11 can also be wave height depending on the table
+                int paramNum = gribRecord.getParameterNumber();
+                String paramDesc = gribRecord.getParameterDescription();
+
+                // Check for wave height parameters (varies by GRIB version/table)
+                // Common codes: 100 (HTSGW), 140 (WVHGT), or descriptions containing "wave" and "height"
+                boolean isWaveHeight = paramNum == 100 || paramNum == 140 ||
+                    (paramDesc != null && paramDesc.toLowerCase().contains("wave") &&
+                     paramDesc.toLowerCase().contains("height"));
+
+                if (isWaveHeight) {
+                    Record r = new Record();
+                    r.time = gribRecord.getForecastTime().getTimeInMillis();
+                    r.heights = gribRecord.getValues();
+                    r.stride = gribRecord.getStride();
+                    r.left = (float) gribRecord.getMinimumLongitude();
+                    r.right = (float) gribRecord.getMaximumLongitude();
+                    r.bottom = (float) gribRecord.getMinimumLatitude();
+                    r.top = (float) gribRecord.getMaximumLatitude();
+
+                    // Handle latitude ordering if needed
+                    if (r.top < r.bottom) {
+                        float[] temp = new float[r.heights.length];
+                        int i = 0;
+                        int rowEnd = r.heights.length;
+                        int rowStart = rowEnd - r.stride;
+                        do {
+                            for (int j = rowStart; j < rowEnd; j++) {
+                                temp[i++] = r.heights[j];
+                            }
+                            rowEnd -= r.stride;
+                            rowStart -= r.stride;
+                        } while (i < r.heights.length);
+                        r.heights = temp;
+                        float swap = r.top;
+                        r.top = r.bottom;
+                        r.bottom = swap;
+                    }
+
+                    r.fx = (r.stride - 1) / (r.right - r.left);
+                    r.fy = (r.heights.length / r.stride - 1) / (r.top - r.bottom);
+                    data.add(r);
+                }
+            }
+            in.close();
+        } catch (Exception e) {
+            System.err.println("Error reading GRIB wave file: " + file);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Read wave data from NetCDF file (original implementation).
+     */
+    void ReadNetCDFFile(String file, ArrayList<Record> data) {
         NetcdfFile ncfile = null;
         try {
             ncfile = NetcdfFile.open(file);
@@ -189,7 +264,6 @@ public class Waves {
                 e.printStackTrace();
             }
         }
-//        System.out.println("Read tide file: " + file);
     }
 
     void draw(Graphics2D g, Mercator screen, long time) {
@@ -211,6 +285,3 @@ public class Waves {
         g.setStroke(new BasicStroke(1));
     }
 }
-
-
-
