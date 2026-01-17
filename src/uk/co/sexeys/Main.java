@@ -1,8 +1,11 @@
 package uk.co.sexeys;
 
 import java.io.FileNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Main {
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
     // Configuration is loaded from config.yaml (or specified config file)
     // These fields are populated from Config after loading
 
@@ -96,11 +99,11 @@ public class Main {
         try {
             Config.load(configFile);
             initFromConfig();
-            System.out.println("Configuration loaded from: " + configFile);
+            logger.info("Configuration loaded from: {}", configFile);
         } catch (FileNotFoundException e) {
-            System.err.println("Configuration file not found: " + configFile);
-            System.err.println("Please create a config.yaml file or specify a config file as argument.");
-            System.err.println("Usage: java -jar jim.jar [config.yaml]");
+            logger.error("Configuration file not found: {}", configFile);
+            logger.error("Please create a config.yaml file or specify a config file as argument.");
+            logger.error("Usage: java -jar jim.jar [config.yaml]");
             System.exit(1);
         }
 

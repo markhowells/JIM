@@ -1,5 +1,7 @@
 package uk.co.sexeys;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ucar.ma2.Array;
 import ucar.ma2.IndexIterator;
 import ucar.ma2.InvalidRangeException;
@@ -20,6 +22,7 @@ import java.util.List;
 
 
 public class Waves {
+    private static final Logger logger = LoggerFactory.getLogger(Waves.class);
     private Record[] data;
 
     private final Vector2 a = new Vector2();
@@ -205,8 +208,7 @@ public class Waves {
             }
             in.close();
         } catch (Exception e) {
-            System.err.println("Error reading GRIB wave file: " + file);
-            e.printStackTrace();
+            logger.error("Error reading GRIB wave file: {}", file, e);
         }
     }
 
@@ -252,16 +254,16 @@ public class Waves {
                 i++;
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("IO error reading NetCDF wave file", e);
         } catch (UnitException e) {
-            e.printStackTrace();
+            logger.error("Unit error reading NetCDF wave file", e);
         } catch (InvalidRangeException e) {
-            e.printStackTrace();
+            logger.error("Invalid range error reading NetCDF wave file", e);
         } finally {
             if (null != ncfile) try {
                 ncfile.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.error("Error closing NetCDF file", e);
             }
         }
     }

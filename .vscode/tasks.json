@@ -1,0 +1,34 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "java (buildArtifact)",
+			"targetPath": "${workspaceFolder}/${workspaceFolderBasename}.jar",
+			"elements": [
+				"${compileOutput:JIM 20251214_f59c1f5b}",
+				"${dependencies:JIM 20251214_f59c1f5b}",
+				"${compileOutput:jim}",
+				"${dependencies:jim}"
+			],
+			"problemMatcher": [],
+			"label": "java (buildArtifact): JIM 20251214",
+			"group": "build"
+		},
+		{
+			"type": "java (buildArtifact)",
+			"targetPath": "${workspaceFolder}/${workspaceFolderBasename}.jar",
+			"elements": [
+				"${compileOutput:JIM 20251214_f59c1f5b}",
+				"${dependencies:JIM 20251214_f59c1f5b}",
+				"${compileOutput:jim}",
+				"${dependencies:jim}"
+			],
+			"problemMatcher": [],
+			"label": "java (buildArtifact): JIM 20251214",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		}
+	]
+}

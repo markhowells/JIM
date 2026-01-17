@@ -3,6 +3,8 @@ package uk.co.sexeys.JIM;
 // https://stackoverflow.com/questions/3997410/how-to-calculate-cross-track-error-gps-core-location
 // https://www.tandfonline.com/doi/full/10.1080/17445302.2024.2329011#d1e295
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import uk.co.sexeys.*;
 import uk.co.sexeys.water.Water;
 import uk.co.sexeys.waypoint.*;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.*;
 
 public class CrossTrack extends JIM{
+    private static final Logger logger = LoggerFactory.getLogger(CrossTrack.class);
 
     public static class CrossTrackAgent extends Agent{
         CrossTrackAgent(Agent agent) {
@@ -35,19 +38,17 @@ public class CrossTrack extends JIM{
                 boat.waypoints[boat.currentWaypoint ] instanceof InterimFix)
             boat.currentWaypoint ++;
         if (boat.currentWaypoint < 1) {
-            System.out.println();
-            System.out.println("***********************************");
-            System.out.println("Really was expecting first waypoint to be a Fix or Depart");
-            System.out.println("and the second waypoint to be Expand.");
-            System.out.println("***********************************");
+            logger.error("***********************************");
+            logger.error("Really was expecting first waypoint to be a Fix or Depart");
+            logger.error("and the second waypoint to be Expand.");
+            logger.error("***********************************");
             System.exit(-1);
         }
         if (! (boat.waypoints[boat.currentWaypoint ] instanceof Expand)) {
-            System.out.println();
-            System.out.println("***********************************");
-            System.out.println("Starting an ordinary waypoint is STRONGLY discouraged.");
-            System.out.println("Start instead with an expanding waypoint.");
-            System.out.println("***********************************");
+            logger.warn("***********************************");
+            logger.warn("Starting an ordinary waypoint is STRONGLY discouraged.");
+            logger.warn("Start instead with an expanding waypoint.");
+            logger.warn("***********************************");
         }
         if(boat.waypoints[boat.currentWaypoint].obstructions.data == null)
             Obstruction.active = null;
@@ -93,14 +94,14 @@ public class CrossTrack extends JIM{
                         ((InterimFix) boat.waypoints[initialAgent.currentLeg-1]).TWS, computedWind.x * phys.knots,
                         ((InterimFix) boat.waypoints[initialAgent.currentLeg-1]).TWA, TWA,
                         ((InterimFix) boat.waypoints[initialAgent.currentLeg-1]).sail, v.sail);
-                System.out.println(sb);
+                logger.info("{}", sb);
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.error("Error computing speed", e);
             }
         }
         newAgents.clear();
         newAgents.add(initialAgent);
-        System.out.println();
+        logger.debug("Search initialized");
     }
 
     public void Search(long cutoffTime) throws Exception{
@@ -120,10 +121,7 @@ public class CrossTrack extends JIM{
                         keyAgent = a;
                     }
                 }
-                System.out.println("""
-                   \nFor some reason the route did not finish before the maximum time allowed (Main.JIMCutoff).
-                   Check the map. Check Main.JIMCutoff).
-                   """);
+                logger.warn("For some reason the route did not finish before the maximum time allowed (Main.JIMCutoff). Check the map. Check Main.JIMCutoff.");
                 continue;
             }
 
@@ -145,10 +143,7 @@ public class CrossTrack extends JIM{
             List<Agent> nextAgents = NextTimeStep(newAgents, route.currentTime, angularRange);
             CullAgents(nextAgents, newAgents);
             if (newAgents.isEmpty()) {
-                System.out.println("""
-                    \nFor some reason all routes have disappeared. Stopped routing.
-                    Check the map for errors. Consider adding/moving gate waypoints.
-                    """);
+                logger.warn("For some reason all routes have disappeared. Stopped routing. Check the map for errors. Consider adding/moving gate waypoints.");
                 keepGoing = false;
                 continue;
             }
@@ -213,7 +208,7 @@ public class CrossTrack extends JIM{
 //                }
             }
 //            System.out.print("\r"+(elapsedTime) / phys.msPerHour+ " "+newAgents.size());
-            System.out.print("\r"+route.currentTime+" "+newAgents.size());
+            logger.debug("Time: {} Agents: {}", route.currentTime, newAgents.size());
         }
     }
 
@@ -263,7 +258,7 @@ public class CrossTrack extends JIM{
                 agent.closeHauled = cosAngle < 0;
 
                 if(trueWIndSpeed >100)
-                    System.out.println("Wind too high");
+                    logger.warn("Wind too high: {}", trueWIndSpeed);
 
 
                 boat.polarToUse.interpolate(trueWIndSpeed, cosAngle , waterTrack);
@@ -376,7 +371,7 @@ public class CrossTrack extends JIM{
                     a.cost = -(result.y);
                 }
                 case null, default -> {
-                    System.out.println("Waypoint not coded");
+                    logger.error("Waypoint not coded");
                     System.exit(-1);
                 }
             }

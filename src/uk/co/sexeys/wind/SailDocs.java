@@ -2,6 +2,8 @@ package uk.co.sexeys.wind;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ucar.ma2.Array;
 import ucar.ma2.IndexIterator;
 import ucar.ma2.InvalidRangeException;
@@ -21,6 +23,7 @@ import java.io.*;
 import java.util.*;
 
 public class SailDocs extends Wind{
+    private static final Logger logger = LoggerFactory.getLogger(SailDocs.class);
     private final List<Record> dataAL = new ArrayList<>();
     final private Record[] data;
     Wind prevailing;
@@ -70,7 +73,7 @@ public class SailDocs extends Wind{
             final float dx1 = 1 - dx; float dy1 = 1 - dy;
             final float A = dx1 * dy1; float B = dx * dy1; float C = dx1 * dy; float D = dx * dy;
             if(offset11 > u.length) {
-                System.out.println("index error");
+                logger.error("index error");
             }
             out.x = u[offset00] * A + u[offset10] * B + u[offset01] * C + u[offset11] * D;
             out.y = v[offset00] * A + v[offset10] * B + v[offset01] * C + v[offset11] * D;
@@ -179,11 +182,11 @@ public class SailDocs extends Wind{
             // Process complete records (those with both U and V)
             for (Record record : recordsByTime.values()) {
                 if (record.u == null || record.v == null) {
-                    System.out.println("Warning: Incomplete wind record (missing U or V component) at time " + record.time);
+                    logger.warn("Incomplete wind record (missing U or V component) at time {}", record.time);
                     continue;
                 }
                 if (record.u.length != record.v.length) {
-                    System.out.println("U and V length not equal for some reason. Skipping record.");
+                    logger.warn("U and V length not equal for some reason. Skipping record.");
                     continue;
                 }
 
@@ -264,10 +267,9 @@ public class SailDocs extends Wind{
             }
 
         } catch (FileNotFoundException e) {
-            System.out.println(file + " not found on disk. Skipping...");
+            logger.info("{} not found on disk. Skipping...", file);
         } catch (Exception e) {
-            System.err.println("Error reading GRIB wind file: " + file);
-            e.printStackTrace();
+            logger.error("Error reading GRIB wind file: {}", file, e);
         }
         return records;
     }
@@ -296,15 +298,15 @@ public class SailDocs extends Wind{
                 Variable uoVar = group.findVariable("u-component_of_wind_height_above_ground");
                 Variable voVar = group.findVariable("v-component_of_wind_height_above_ground");
                 if (null == timeVar || null == latVar || null == lonVar || null == uoVar || null == voVar) {
-                    System.out.println("A variable could not be found - need to debug...\n");
+                    logger.error("A variable could not be found - need to debug...");
                     System.exit(-1);
                 }
 
                 Array times = timeVar.read();
-                System.out.println("times: "+times.getSize());
+                logger.debug("times: {}", times.getSize());
                 Attribute units = timeVar.findAttribute("units");
                 String tunitsString = units.getStringValue();
-                System.out.println(tunitsString);
+                logger.debug("Time units: {}", tunitsString);
                 DateUnit referenceUnit = new DateUnit(tunitsString);
                 IndexIterator ti = times.getIndexIterator();
                 Array lats = latVar.read();
@@ -330,13 +332,13 @@ public class SailDocs extends Wind{
                     record.u = (float[]) u.copyTo1DJavaArray();
                     record.v = (float[]) v.copyTo1DJavaArray();
                     if (Float.isNaN(record.u[0]))
-                        System.out.println("NaN");
+                        logger.warn("NaN value detected in wind data");
                     if (record.u == null || record.v == null) {
-                        System.out.println("U or V nor decoded for some reason Exiting.\n");
+                        logger.error("U or V not decoded for some reason. Exiting.");
                         System.exit(-1);
                     }
                     if (record.u.length != record.v.length) {
-                        System.out.println("U and V length not equal for some reason Exiting.\n");
+                        logger.error("U and V length not equal for some reason. Exiting.");
                         System.exit(-1);
                     }
                     if (record.top < record.bottom) { //reorder in memory
@@ -413,14 +415,14 @@ public class SailDocs extends Wind{
             }
 
         } catch (FileNotFoundException e) {
-            System.out.println(" not found on disk. Skipping...");
+            logger.info("File not found on disk. Skipping...");
         } catch (IOException | InvalidRangeException | UnitException e) {
-            e.printStackTrace();
+            logger.error("Error reading NetCDF file", e);
         } finally {
             if (null != ncfile) try {
                 ncfile.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.error("Error closing NetCDF file", e);
             }
         }
         return records;
@@ -435,8 +437,8 @@ public class SailDocs extends Wind{
         }
 
         if (dataAL.isEmpty()) {
-            System.err.println("ERROR: No valid wind records found in GRIB files!");
-            System.err.println("Check that your GRIB files contain U and V wind components.");
+            logger.error("No valid wind records found in GRIB files!");
+            logger.error("Check that your GRIB files contain U and V wind components.");
             System.exit(-1);
         }
 
@@ -444,7 +446,7 @@ public class SailDocs extends Wind{
         long lastTime = 0;
         for (Record r: dataAL) {
             if (r.time <= lastTime) {
-                System.out.println("Wind grib files are not in time ascending order");
+                logger.error("Wind grib files are not in time ascending order");
                 System.exit(-1);
             }
             lastTime = r.time;

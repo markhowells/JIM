@@ -1,5 +1,8 @@
 package uk.co.sexeys;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.imageio.ImageIO;
 
 import java.awt.*;
@@ -31,6 +34,7 @@ import java.util.ArrayList;
  * Change scale of web page to screen. Hover over page to get coordinates. Edit Charts
  */
 class Chart extends Mercator {
+    private static final Logger logger = LoggerFactory.getLogger(Chart.class);
     private final File file;
 
     BufferedImage image = null;
@@ -41,11 +45,11 @@ class Chart extends Mercator {
         try {
                 image = ImageIO.read(file);
         } catch (Exception e ) {
-            System.out.println("read error: " + e.getMessage());
+            logger.error("Read error: {}", e.getMessage());
             System.gc();
             disable();
         } catch (OutOfMemoryError e) {
-            System.out.println("Out of memory. Could not read image." + e.getMessage());
+            logger.error("Out of memory. Could not read image: {}", e.getMessage());
             System.gc();
             disable();
         }
