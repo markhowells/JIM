@@ -2,6 +2,9 @@ package uk.co.sexeys;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 
 import javax.imageio.ImageIO;
 
@@ -33,7 +36,7 @@ import java.util.ArrayList;
  * Save as PNG
  * Change scale of web page to screen. Hover over page to get coordinates. Edit Charts
  */
-class Chart extends Mercator {
+public class Chart extends Mercator implements Renderable {
     private static final Logger logger = LoggerFactory.getLogger(Chart.class);
     private final File file;
 
@@ -60,7 +63,7 @@ class Chart extends Mercator {
         image = null;
     }
 
-    boolean visibleAtThisScale(float scale) {
+    public boolean visibleAtThisScale(float scale) {
         if (scale > 2 * this.scale)
             return false;
         return !(scale < 0.05 * this.scale);
@@ -79,7 +82,31 @@ class Chart extends Mercator {
         }
     }
 
-    void computeParameters(int dummy) {
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        if (!visibleAtThisScale(projection.getScale()))
+            return;
+
+        Vector2 stl = projection.fromLatLngToPoint(topLeft.y, topLeft.x);
+        Vector2 sbr = projection.fromLatLngToPoint(bottomRight.y, bottomRight.x);
+        if (enabled && image != null) {
+            String imageKey = file.getAbsolutePath();
+            renderer.drawImage(imageKey, stl.x, stl.y, sbr.x, sbr.y, 0, 0, image.getWidth(), image.getHeight());
+        } else {
+            renderer.setColor(255, 0, 255); // magenta
+            renderer.drawRect(stl.x, stl.y, sbr.x - stl.x, sbr.y - stl.y);
+        }
+    }
+
+    public BufferedImage getImage() {
+        return image;
+    }
+
+    public String getImageKey() {
+        return file.getAbsolutePath();
+    }
+
+    public void computeParameters(int dummy) {
         _pixelsPerLonDegree = (x1[0] - x2[0]) / (lon1 - lon2);
         _pixelsPerLonRadian = _pixelsPerLonDegree * 360 / (2 * Math.PI);
         _pixelOrigin = new Vector2(-x1[0], -y1[0]);

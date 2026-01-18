@@ -1,5 +1,10 @@
 package uk.co.sexeys;
 
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
+
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.io.File;
@@ -15,7 +20,7 @@ import java.util.List;
  * Created by Jim on 25/02/2018.
  * https://data.admiralty.co.uk/portal/apps/sites/#/marine-data-portal
  */
-class WVS {
+public class WVS implements Renderable {
     private byte[] buffer = null;
 
     WVS(double s) {
@@ -567,6 +572,41 @@ class WVS {
             }
         }
         g.draw(results);
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        renderer.setColor(Colors.BLACK);
+
+        Vector2 topLeft = projection.getTopLeft();
+        Vector2 bottomRight = projection.getBottomRight();
+
+        int startLat = (int) Math.floor(bottomRight.y);
+        if (startLat < -90) startLat = -90;
+        int endLat = (int) Math.ceil(topLeft.y);
+        if (endLat > 90) endLat = 90;
+        int startLong = (int) Math.floor(topLeft.x);
+        if (startLong < -360) startLong = -360;
+        int endLong = (int) Math.ceil(bottomRight.x);
+        if (endLong > 360) endLong = 360;
+
+        for (int lat = startLat; lat <= endLat; lat++) {
+            for (int lon = startLong; lon < endLong; lon++) {
+                if (world[lat + 90][lon + worldOffset] == null)
+                    world[lat + 90][lon + worldOffset] = new GridPoint(lat, lon);
+                Iterator<Vector2> iter = world[lat + 90][lon + worldOffset].data.iterator();
+                for (int nPoints : world[lat + 90][lon + worldOffset].segray) {
+                    Vector2 first = iter.next();
+                    Vector2 p1 = projection.fromLatLngToPoint(first.y + Main.ChartOffsetY, first.x + Main.ChartOffsetX);
+                    for (int i = 1; i < nPoints; i++) {
+                        Vector2 next = iter.next();
+                        Vector2 p2 = projection.fromLatLngToPoint(next.y + Main.ChartOffsetY, next.x + Main.ChartOffsetX);
+                        renderer.drawLine(p1.x, p1.y, p2.x, p2.y);
+                        p1 = p2;
+                    }
+                }
+            }
+        }
     }
 //    String TSZ ="""
 //            56 18 1;56*55.36'N 018*17.12'E;56*57'N 018*17'E

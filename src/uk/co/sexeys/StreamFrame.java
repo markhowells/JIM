@@ -3,6 +3,9 @@ package uk.co.sexeys;
 
 import uk.co.sexeys.CMap.CMap;
 import uk.co.sexeys.JIM.*;
+import uk.co.sexeys.rendering.MercatorProjection;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.ui.swing.SwingRenderer;
 import uk.co.sexeys.water.PrevailingCurrent;
 import uk.co.sexeys.water.Tide;
 import uk.co.sexeys.water.Water;
@@ -79,6 +82,10 @@ class StreamFrame extends JFrame {
         Boat boat = new Boat();
         JIM jim;
         Mercator screen;
+
+        // Rendering abstraction layer
+        SwingRenderer renderer = new SwingRenderer(this);
+        MercatorProjection projection;
 
         int startX = -1, startY = -1, endX, endY, lastX, lastY;
 
@@ -863,6 +870,7 @@ class StreamFrame extends JFrame {
                     screen.lat2 = screen.bottomRight.y;
                     screen.enabled = true;
                     image = new BufferedImage(screen.width, screen.height, BufferedImage.TYPE_INT_ARGB);
+                    projection = new MercatorProjection(screen);
                     cMap.update(screen);
 
                     UpdateGraphics();
@@ -1000,6 +1008,21 @@ class StreamFrame extends JFrame {
             Font font = new Font("Arial", Font.BOLD, Main.fontSize);
             if (!screen.enabled)
                 return;
+
+            // Set up SwingRenderer for this frame
+            renderer.setGraphics(g2d, image.getWidth(), image.getHeight());
+
+            // Register chart images with renderer for Renderable usage
+            for (Chart chart : charts) {
+                if (chart.getImage() != null) {
+                    renderer.registerImage(chart.getImageKey(), chart.getImage());
+                }
+            }
+            for (TidalStream ts : tidalStreams) {
+                if (ts.getImage() != null) {
+                    renderer.registerImage(ts.getImageKey(), ts.getImage());
+                }
+            }
 
             if (null != depth)
                 if (cMap.scaleLevel <0)

@@ -1,5 +1,9 @@
 package uk.co.sexeys;
 
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
+
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.ImageObserver;
@@ -16,7 +20,7 @@ import java.util.zip.Inflater;
  * Created by Jim on 16/06/2018.
  *
  */
-class Depth {
+public class Depth implements Renderable {
     private String file;
 
     private int pointsPerMinute;
@@ -116,6 +120,76 @@ class Depth {
                 g.drawImage(hit.image, (int) stl.x, (int) stl.y, (int) sbr.x, (int) sbr.y, 0,stride, stride, 0,io);
             }
         }
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        Vector2 topLeft = projection.getTopLeft();
+        Vector2 bottomRight = projection.getBottomRight();
+
+        int latS = (int) Math.floor(bottomRight.y);
+        int latE = (int) Math.ceil(topLeft.y);
+        int lonS = (int) Math.floor(topLeft.x);
+        int lonE = (int) Math.ceil(bottomRight.x);
+        if (latE - latS > 10) return;
+        if (lonE - lonS > 10) return;
+        int stride = 60 * pointsPerMinute + 1;
+        int[] out = new int[stride * stride];
+
+        byte[] result;
+        for (int lat = latS; lat < latE; lat++) {
+            for (int lon = lonS; lon < lonE; lon++) {
+                CacheEntry hit = null;
+                for (int i = 0; i < cache.size(); i++) {
+                    CacheEntry c = cache.get(i);
+                    if (c.lat == lat && c.lon == lon) {
+                        hit = c;
+                        cache.remove(i);
+                        break;
+                    }
+                }
+                if (null == hit) {
+                    hit = new CacheEntry();
+                    hit.lat = lat;
+                    hit.lon = lon;
+                    hit.image = new BufferedImage(stride, stride, BufferedImage.TYPE_3BYTE_BGR);
+                    try {
+                        result = getCell(lat, lon);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        return;
+                    }
+                    byte v;
+                    for (int i = 0; i < out.length; i++) {
+                        v = result[i];
+                        if (v > 0)
+                            out[i] = 0xf6c96e;
+                        else if (v < 0)
+                            out[i] = 0xffffff;
+                        else
+                            out[i] = 0x7fbed8;
+                    }
+                    hit.image.setRGB(0, 0, stride, stride, out, 0, stride);
+                }
+                cache.addFirst(hit);
+                if (cache.size() > 30)
+                    cache.removeLast();
+
+                String imageKey = "depth_" + lat + "_" + lon;
+                Vector2 stl = projection.fromLatLngToPoint(lat + 1, lon + 1.0 / 60 / 4);
+                Vector2 sbr = projection.fromLatLngToPoint(lat, lon + 1 + 1.0 / 60 / 4);
+                renderer.drawImage(imageKey, stl.x, stl.y, sbr.x, sbr.y, 0, stride, stride, 0);
+            }
+        }
+    }
+
+    public BufferedImage getCachedImage(int lat, int lon) {
+        for (CacheEntry c : cache) {
+            if (c.lat == lat && c.lon == lon) {
+                return c.image;
+            }
+        }
+        return null;
     }
     static class SafeArea {
         int minLat;

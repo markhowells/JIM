@@ -16,7 +16,7 @@ import java.util.*;
  * Created by Jim on 12/01/2019.
  *
  */
-class DifferentialEvolution {
+public class DifferentialEvolution {
     class Agent {
         Vector2[] waypoint; // Only position is part of search
         final LinkedList<Fix> track = new LinkedList<>();

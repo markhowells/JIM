@@ -12,6 +12,10 @@ import ucar.nc2.units.DateUnit;
 import ucar.units.UnitException;
 import uk.co.sexeys.jgribx.GribFile;
 import uk.co.sexeys.jgribx.GribRecord;
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 
 import java.awt.*;
 import java.io.File;
@@ -21,7 +25,7 @@ import java.util.*;
 import java.util.List;
 
 
-public class Waves {
+public class Waves implements Renderable {
     private static final Logger logger = LoggerFactory.getLogger(Waves.class);
     private Record[] data;
 
@@ -123,7 +127,7 @@ public class Waves {
         return (float) (a * A + b * j);
     }
 
-    Waves(long time) { // No waves
+    public Waves(long time) { // No waves
         Calendar refTime = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
         refTime.setTimeInMillis(time);
         Calendar endTime = (Calendar) refTime.clone();
@@ -135,7 +139,7 @@ public class Waves {
         data = dataAL.toArray(new Record[0]);
     }
 
-    Waves(List<String> files) {// List of wave files
+    public Waves(List<String> files) {// List of wave files
         final ArrayList<Record> dataAL = new ArrayList<>();
         for (String f : files) {
             if (f.toLowerCase().endsWith(".grb") || f.toLowerCase().endsWith(".grib") || f.toLowerCase().endsWith(".grib2")) {
@@ -285,5 +289,28 @@ public class Waves {
             }
         }
         g.setStroke(new BasicStroke(1));
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        Vector2 topLeft = projection.getTopLeft();
+        Vector2 bottomRight = projection.getBottomRight();
+
+        double dx = (bottomRight.x - topLeft.x) / 20;
+        double dy = (topLeft.y - bottomRight.y) / 20;
+
+        renderer.setColor(Colors.BLUE);
+        for (double i = topLeft.x + dx; i < bottomRight.x; i += dx) {
+            for (double j = bottomRight.y + dy; j < topLeft.y; j += dy) {
+                Vector2 p = projection.fromLatLngToPoint(j, i);
+                float height = getValue(new Vector2((float) i, (float) j), time);
+                renderer.setColor(Colors.RED);
+                int rect = 30;
+                if (height > Main.waveWarning) {
+                    renderer.fillRect(p.x - rect / 2f, p.y - rect / 2f, rect, rect);
+                }
+            }
+        }
+        renderer.setSolidStroke(1);
     }
 }

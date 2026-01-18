@@ -16,7 +16,7 @@ import static java.lang.System.exit;
  * Created by Jim on 22/02/2018.
  *
  */
-class Harmonics {
+public class Harmonics {
     int num_csts;
     int first_year;
     double[] m_cst_speeds;

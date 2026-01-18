@@ -5,6 +5,11 @@ package uk.co.sexeys;
  *
  */
 
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
+
 import java.awt.*;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -13,7 +18,7 @@ import java.util.Scanner;
 
 import static java.lang.System.exit;
 
-class IDX {
+public class IDX implements Renderable {
     private static final int REGION = 0, COUNTRY = 1, STATE = 2;
     private static final int SOURCE_TYPE_ASCII_HARMONIC = 1;
     private String fileName;
@@ -89,6 +94,34 @@ class IDX {
                 idx.screenPosition = null;
         }
         g.setColor(Color.black);
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        if (m_IDX_array == null)
+            return;
+        renderer.setColor(Colors.MAGENTA);
+        drawn.clear();
+        Vector2 topLeft = projection.getTopLeft();
+        Vector2 bottomRight = projection.getBottomRight();
+
+        for (IDX_entry idx : m_IDX_array) {
+            if (idx.IDX_type != 'T' && idx.IDX_type != 't')
+                continue;
+            if (!idx.IDX_Useable)
+                continue;
+            double lon = idx.IDX_lon;
+            double lat = idx.IDX_lat;
+            idx.screenPosition = projection.fromLatLngToPoint(lat, lon);
+            if (lon > topLeft.x && lon < bottomRight.x &&
+                    lat < topLeft.y && lat > bottomRight.y) {
+                renderer.fillRect(idx.screenPosition.x - 10, idx.screenPosition.y - 10, 20, 20);
+                drawn.add(idx);
+            } else {
+                idx.screenPosition = null;
+            }
+        }
+        renderer.setColor(Colors.BLACK);
     }
 
     IDX_entry closestDrawn(Vector2 p) {

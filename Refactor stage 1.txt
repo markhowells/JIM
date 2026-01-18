@@ -1,0 +1,30 @@
+Summary: UI/Logic Separation Refactoring
+New Architecture
+Rendering Abstraction Layer (uk.co.sexeys.rendering/):
+
+Renderer.java - Abstract interface for drawing operations (lines, shapes, text, images)
+Projection.java - Interface for geographic-to-screen coordinate conversion
+Renderable.java - Interface for objects that can be rendered
+RenderContext.java - Context object holding render state and options
+MercatorProjection.java - Adapter wrapping existing Mercator class
+Swing Implementation (uk.co.sexeys.ui.swing/):
+
+SwingRenderer.java - Swing/AWT implementation of Renderer interface
+Service Classes (uk.co.sexeys/):
+
+RoutingService.java - Route calculation and optimization
+WeatherService.java - Wind, current, and wave data management
+ChartService.java - Chart and tidal stream management
+ApplicationContext.java - Main application facade
+Classes Made Public
+Chart, TidalStream, WVS, Depth, IDX, Harmonics, DifferentialEvolution
+Mercator.width, Mercator.height, Mercator.scale
+Waves constructors
+Benefits of This Architecture
+Decoupled rendering - Domain objects can use the Renderer interface instead of Graphics2D directly
+Service layer - Business logic is encapsulated in service classes with clean APIs
+Future-proof - Adding a web backend would require implementing Renderer for HTML Canvas/WebGL
+Next Steps for Full Migration
+Refactor StreamFrame to use ApplicationContext instead of direct domain manipulation
+Update domain classes (Chart, TidalStream, etc.) to implement Renderable interface
+Replace direct Graphics2D calls with Renderer calls throughout the codebase

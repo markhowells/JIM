@@ -15,11 +15,11 @@ public class Mercator {
     public int[] y2;
     Vector2 _pixelOrigin;
     public Vector2 topLeft, bottomRight;
-    Boolean enabled = false;
+    public Boolean enabled = false;
     double _pixelsPerLonDegree;
     double _pixelsPerLonRadian;
-    int height, width;
-    float scale;
+    public int height, width;
+    public float scale;
 
     public Mercator() {}
 
@@ -59,7 +59,7 @@ public class Mercator {
         this.scale = (float) (Math.abs(lat2 - lat1) * 60 * phys.mPerNM);
     }
 
-    Mercator(float top, float left, float right) { // relies on screen resize to update
+    public Mercator(float top, float left, float right) { // relies on screen resize to update
         this.x1 = new int[]{0};
         this.y1 = new int[]{0};
         this.x2 = new int[]{0};
@@ -102,7 +102,7 @@ public class Mercator {
 
 
 
-    void computeParameters(int i) {
+    public void computeParameters(int i) {
         _pixelsPerLonDegree = (x1[i] - x2[i]) / (lon1 - lon2);
         _pixelsPerLonRadian = _pixelsPerLonDegree * 360 / (2 * Math.PI);
         _pixelOrigin = new Vector2(-x1[i], -y1[i]);
