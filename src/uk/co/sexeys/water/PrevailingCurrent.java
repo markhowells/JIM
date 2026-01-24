@@ -1,5 +1,7 @@
 package uk.co.sexeys.water;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ucar.ma2.Array;
 import ucar.ma2.IndexIterator;
 import ucar.ma2.InvalidRangeException;
@@ -22,6 +24,7 @@ import java.util.*;
 // copernicusmarine subset -i cmems_mod_glo_phy_my_0.083deg-climatology_P1M-m -v uo -v vo -Z 1 -f prevailingCurrents.nc
 
 public class PrevailingCurrent extends Water{
+    private static final Logger logger = LoggerFactory.getLogger(PrevailingCurrent.class);
 
     //    private final ArrayList<Record> data = new ArrayList<>();
     private Record[] data = new Record[12];
@@ -85,6 +88,8 @@ public class PrevailingCurrent extends Water{
         }
     }
 
+    private static boolean debugLogged = false;
+
     public SOURCE getValue(Vector2 p, long t, Vector2 value) {
         if(p.y < -80) { // Quick catch for Antarctica
             value.x = value.y = 0;
@@ -104,6 +109,18 @@ public class PrevailingCurrent extends Water{
 
         value.x = (float) (a.x* A + b.x * j);
         value.y = (float) (a.y* A + b.y * j);
+
+        // Debug: log once
+        if (!debugLogged) {
+            debugLogged = true;
+            logger.info("PrevailingCurrent.getValue debug:");
+            logger.info("  Query position: ({}, {})", p.x, p.y);
+            logger.info("  monthBefore={}, monthAfter={}", monthBefore, monthAfter);
+            logger.info("  a=({}, {}), b=({}, {})", a.x, a.y, b.x, b.y);
+            logger.info("  Result: ({}, {})", value.x, value.y);
+            Record r = data[monthBefore];
+            logger.info("  Record bounds: left={}, right={}, bottom={}, top={}", r.left, r.right, r.bottom, r.top);
+        }
         return SOURCE.PREVAILING;
     }
 
@@ -178,8 +195,15 @@ public class PrevailingCurrent extends Water{
             } catch (IOException e) {
                 e.printStackTrace();
             }        }
-//        System.out.println("Read tide file: " + file);
+        logger.info("Read prevailing current file: {}", file);
+        logger.info("  Loaded {} monthly records", dataAL.size());
         data = dataAL.toArray(new Record[0]);
+        if (data.length > 0) {
+            Record r = data[0];
+            logger.info("  First record: stride={}, bounds=({},{}) to ({},{})",
+                r.stride, r.left, r.bottom, r.right, r.top);
+            logger.info("  Data array size: u={}, v={}", r.u.length, r.v.length);
+        }
     }
 }
 

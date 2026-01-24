@@ -1,6 +1,10 @@
 package uk.co.sexeys;
 
 import uk.co.sexeys.JIM.*;
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 import uk.co.sexeys.water.Water;
 import uk.co.sexeys.waypoint.Depart;
 import uk.co.sexeys.waypoint.InterimFix;
@@ -16,7 +20,7 @@ import java.util.*;
  * Created by Jim on 12/01/2019.
  *
  */
-public class DifferentialEvolution {
+public class DifferentialEvolution implements Renderable {
     class Agent {
         Vector2[] waypoint; // Only position is part of search
         final LinkedList<Fix> track = new LinkedList<>();
@@ -670,6 +674,82 @@ public class DifferentialEvolution {
             g2d.drawLine((int)p0.x-10, (int) p0.y, (int) p0.x+10, (int) p0.y);
         }
         g2d.dispose();
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        Vector2 p, p0;
+
+        renderer.setColor(Colors.BLACK);
+        if (bestAgent.waypoint != null) {
+            for (Vector2 w : bestAgent.waypoint) {
+                p = projection.fromRadiansToPoint(w);
+                renderer.drawRect(p.x - 5, p.y - 5, 10, 10);
+            }
+        }
+
+        // Draw best track with day/night indication
+        renderer.setStrokeWidth(3);
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+
+        for (int i = 1; i < bestAgent.track.size(); i++) {
+            Fix f = bestAgent.track.get(i - 1);
+            if (Float.isNaN(f.position.x))
+                continue;
+
+            c.setTimeInMillis(f.time + phys.msPerDay);
+            long riseTime = Sun.riseTime(c, f.position);
+            long setTime = Sun.setTime(c, f.position);
+            while (riseTime > f.time) {
+                c.add(Calendar.DAY_OF_WEEK, -1);
+                riseTime = Sun.riseTime(c, f.position);
+                setTime = Sun.setTime(c, f.position);
+            }
+            boolean daylight = f.time <= setTime;
+            if (daylight)
+                renderer.setSolidStroke(3);
+            else
+                renderer.setDashedStroke(3, new float[]{9});
+
+            Vector2 tidalWind = f.wind.minus(f.tide);
+            double trueWindSpeed = tidalWind.mag();
+            if (trueWindSpeed == 0) {
+                continue;
+            }
+            double cosAngle = -tidalWind.dot(f.heading) / trueWindSpeed;
+            renderer.setColor(Colors.BLACK);
+            if ((boat.polar.gibeAngle.interpolate(trueWindSpeed) > cosAngle) ||
+                    (boat.polar.tackAngle.interpolate(trueWindSpeed) < cosAngle))
+                renderer.setColor(Colors.MAGENTA);
+            if (trueWindSpeed < 5.0f / phys.knots)
+                renderer.setColor(Colors.RED);
+
+            p0 = projection.fromRadiansToPoint(bestAgent.track.get(i - 1).position);
+            p = projection.fromRadiansToPoint(bestAgent.track.get(i).position);
+            renderer.drawLine(p0.x, p0.y, p.x, p.y);
+        }
+
+        // Draw current position marker
+        Fix Y = null, previous = bestAgent.track.getFirst();
+        for (Fix f : bestAgent.track) {
+            if (f.time >= time) {
+                Y = f;
+                break;
+            }
+            previous = f;
+        }
+        if (null != Y) {
+            renderer.setColor(Colors.RED);
+            p0 = projection.fromRadiansToPoint(Y.position);
+            p = projection.fromRadiansToPoint(previous.position);
+            Vector2 dp = p0.minus(p);
+            float t = (float) (time - previous.time) / (float) (Y.time - previous.time);
+            p0 = p.plus(dp.scale(t));
+            renderer.setSolidStroke(3);
+            renderer.drawLine(p0.x, p0.y - 10, p0.x, p0.y + 10);
+            renderer.drawLine(p0.x - 10, p0.y, p0.x + 10, p0.y);
+        }
+        renderer.setSolidStroke(1);
     }
 
     void drawTWA(Graphics2D g) {

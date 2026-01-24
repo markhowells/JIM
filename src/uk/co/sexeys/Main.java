@@ -51,6 +51,7 @@ public class Main {
      * Initialize all configuration from the Config singleton.
      */
     private static void initFromConfig() {
+        System.out.println("Initializing configuration from Config");
         Config cfg = Config.get();
 
         SCREEN = cfg.getScreen();
@@ -89,6 +90,12 @@ public class Main {
         shoreline = new Shoreline(WVSResolution);
     }
 
+    public static void loadConfig(String configFile) throws FileNotFoundException {
+        System.out.println("Loading configuration from: " + configFile);
+        Config.load(configFile);
+        initFromConfig();
+    }
+
     public static void main(String[] args) {
         // Load configuration
         String configFile = "config.yaml";
@@ -100,6 +107,8 @@ public class Main {
             Config.load(configFile);
             initFromConfig();
             logger.info("Configuration loaded from: {}", configFile);
+            System.out.println("Configuration loaded from: " + configFile);
+
         } catch (FileNotFoundException e) {
             logger.error("Configuration file not found: {}", configFile);
             logger.error("Please create a config.yaml file or specify a config file as argument.");

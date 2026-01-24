@@ -41,7 +41,7 @@ public class Harmonics {
 
     private String fileName;
 
-    Harmonics(String fileName) {
+    public Harmonics(String fileName) {
         this.fileName = fileName;
         known_units = new Units[4];
         known_units[0] = new Units("feet",      "ft",       LENGTH,     0.3048);

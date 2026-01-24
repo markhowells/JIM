@@ -23,7 +23,7 @@ import java.util.List;
 public class WVS implements Renderable {
     private byte[] buffer = null;
 
-    WVS(double s) {
+    public WVS(double s) {
         try {
             scale(s);
         } catch (IOException e) {

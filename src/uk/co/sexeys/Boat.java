@@ -1,5 +1,9 @@
 package uk.co.sexeys;
 
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 import uk.co.sexeys.water.Tide;
 import uk.co.sexeys.water.Water;
 import uk.co.sexeys.waypoint.Depart;
@@ -14,7 +18,7 @@ import java.util.*;
  *
  */
 
-public class Boat {
+public class Boat implements Renderable {
     static LinkedList<Fix> constantHeading = new LinkedList<>();
     static private LinkedList<Fix> constantSail = new LinkedList<>();
     static private LinkedList<Fix> bestTack = new LinkedList<>();
@@ -24,9 +28,9 @@ public class Boat {
     public int currentWaypoint= 0;
     DifferentialEvolution DE;
 
-    Boat() {}
+    public Boat() {}
 
-    Boat(Boat b) {
+    public Boat(Boat b) {
         waypoints = b.waypoints;
         polar = b.polar;
         polarToUse = b.polarToUse;
@@ -409,6 +413,37 @@ public class Boat {
             }
         }
         g.setColor(Color.black);
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        long referenceTime = ((Depart) waypoints[0]).getTime();
+
+        if (showConstantCourse) {
+            renderer.setColor(Colors.BLUE);
+            for (Fix f : constantHeading) {
+                if (f.time > time)
+                    break;
+                f.render(renderer, projection, referenceTime);
+            }
+        }
+        if (showConstantTWA) {
+            renderer.setColor(Colors.DARK_GRAY);
+            for (Fix f : constantSail) {
+                if (f.time > time)
+                    break;
+                f.render(renderer, projection, referenceTime);
+            }
+        }
+        if (showBestTack) {
+            renderer.setColor(Colors.RED);
+            for (Fix f : bestTack) {
+                if (f.time > time)
+                    break;
+                f.render(renderer, projection, referenceTime);
+            }
+        }
+        renderer.setColor(Colors.BLACK);
     }
 
     class Sail {

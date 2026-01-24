@@ -89,7 +89,7 @@ public class Vector2 {
 
 
 
-    void scaleIP(float b) {
+    public void scaleIP(float b) {
         x *= b;
         y *= b;
     }

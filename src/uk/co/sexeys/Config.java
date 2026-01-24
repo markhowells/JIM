@@ -163,7 +163,7 @@ public class Config {
 
         StringBuilder sb = new StringBuilder();
 
-        // Polar
+        // Polar (no space after colon - that's how it's parsed)
         String polar = getStringFromMap(routeConfig, "polar", null);
         if (polar != null) {
             sb.append("Using Polar:").append(polar).append("\n");
@@ -187,14 +187,15 @@ public class Config {
             sb.append("Depart: ").append(position).append(" ").append(time).append("\n");
         }
 
-        // Expand
+        // Expand - format: "Expand: 1 nm 1000 bins of 4 nm 1 hour step"
         Map<String, Object> expand = (Map<String, Object>) routeConfig.get("expand");
         if (expand != null) {
             String distance = (String) expand.get("distance");
             int bins = getIntFromMap(expand, "bins", 360);
+            String binSize = getStringFromMap(expand, "binSize", "1 nm");
             float step = getFloatFromMap(expand, "stepHours", 0.1f);
             sb.append("Expand: ").append(distance).append(" ").append(bins)
-              .append(" bins ").append(step).append(" hour step\n");
+              .append(" bins of ").append(binSize).append(" ").append(step).append(" hour step\n");
         }
 
         // Obstructions
@@ -224,7 +225,9 @@ public class Config {
               .append(" ").append(step).append(" hour step\n");
         }
 
-        return sb.toString();
+        String result = sb.toString();
+        System.out.println("Generated route string:\n" + result);
+        return result;
     }
 
     // Helper methods for parsing

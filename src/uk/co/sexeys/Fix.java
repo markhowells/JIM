@@ -1,5 +1,8 @@
 package uk.co.sexeys;
 
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 import uk.co.sexeys.water.Water;
 import uk.co.sexeys.waypoint.Depart;
 import uk.co.sexeys.waypoint.InterimFix;
@@ -15,7 +18,7 @@ import java.util.*;
  * Created by Jim on 28/10/2018.
  *
  */
-public class Fix {
+public class Fix implements Renderable {
     public long time = 0;
     public Vector2 position;  // radians
     public float cosLatitude;
@@ -252,6 +255,26 @@ public class Fix {
         g.drawLine((int) p.x, (int) p.y , (int) (p.x+ 50 * heading.x), (int) (p.y - 50*heading.y));
         return p;
     }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long t) {
+        renderer.setFont("Arial", Renderer.FONT_PLAIN, Main.fontSize);
+        Vector2 p = projection.fromRadiansToPoint(position);
+        renderer.drawLine(p.x - 10, p.y, p.x + 10, p.y);
+        renderer.drawLine(p.x, p.y - 10, p.x, p.y + 10);
+        if (heading != null) {
+            renderer.drawLine(p.x, p.y, p.x + 50 * heading.x, p.y - 50 * heading.y);
+        }
+
+        SimpleDateFormat format = new SimpleDateFormat("HH:mm");
+        format.setTimeZone(TimeZone.getTimeZone("UTC"));
+        Calendar displayTime = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        displayTime.setTimeInMillis(time);
+        String positionStr = format.format(displayTime.getTime());
+        long diff = (time - t) / phys.msPerHour;
+
+        renderer.drawText(positionStr + " " + diff, p.x + 5, p.y - 5);
+    }
     private final static StringBuilder sb = new StringBuilder();
     private final static Formatter formatter = new Formatter(sb, Locale.UK);
 
@@ -381,7 +404,7 @@ public class Fix {
         return latitudeSign * (latitudeDegrees + latitudeMinutes/60f + latitudeSeconds/3600);
     }
 
-    static float parseLatitude(String data) {
+    public static float parseLatitude(String data) {
         String[] temp1 = data.split("\\*");
         if (temp1.length !=2 ) {
             System.out.println(
@@ -459,7 +482,7 @@ public class Fix {
     }
 
 
-    static float parseLongitude(String data) {
+    public static float parseLongitude(String data) {
         String[] temp1 = data.split("\\*");
         if (temp1.length !=2 ) {
             System.out.println(

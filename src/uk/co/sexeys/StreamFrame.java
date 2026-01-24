@@ -3,6 +3,7 @@ package uk.co.sexeys;
 
 import uk.co.sexeys.CMap.CMap;
 import uk.co.sexeys.JIM.*;
+import uk.co.sexeys.rendering.Colors;
 import uk.co.sexeys.rendering.MercatorProjection;
 import uk.co.sexeys.rendering.Projection;
 import uk.co.sexeys.ui.swing.SwingRenderer;
@@ -94,12 +95,27 @@ class StreamFrame extends JFrame {
         Continuous continuous;
 
         StreamPanel() {
-            if(Main.REPLAY.length() != 0)
-                replay(this);
-            else
-                parse(this);
+            System.err.println("=== StreamPanel constructor starting ===");
+            System.err.flush();
+            try {
+                if(Main.REPLAY.length() != 0)
+                    replay(this);
+                else
+                    parse(this);
+                System.err.println("=== parse() completed ===");
+                System.err.flush();
+            } catch (Exception e) {
+                System.err.println("=== Exception in parse(): " + e.getMessage());
+                e.printStackTrace(System.err);
+                System.err.flush();
+                throw new RuntimeException(e);
+            }
 
+            System.err.println("=== About to create CMap ===");
+            System.err.flush();
             cMap = new CMap(0);
+            System.err.println("=== CMap created ===");
+            System.err.flush();
             setFocusable(true);
             requestFocusInWindow();
             addKeyListener(new KeyListener() {
@@ -864,6 +880,8 @@ class StreamFrame extends JFrame {
             addComponentListener(new ComponentAdapter() {
                 @Override
                 public void componentResized(ComponentEvent e) {
+                    System.err.println("=== componentResized fired, width=" + e.getComponent().getWidth() + ", height=" + e.getComponent().getHeight() + " ===");
+                    System.err.flush();
                     screen.x2[0] = screen.width = e.getComponent().getWidth();
                     screen.y2[0] = screen.height = e.getComponent().getHeight();
                     screen.computeParameters(0);
@@ -873,26 +891,52 @@ class StreamFrame extends JFrame {
                     projection = new MercatorProjection(screen);
                     cMap.update(screen);
 
+                    System.err.println("=== componentResized calling UpdateGraphics() ===");
+                    System.err.flush();
                     UpdateGraphics();
+                    System.err.println("=== componentResized UpdateGraphics() returned ===");
+                    System.err.flush();
 
                     repaint();
                 }
             });
 
+            System.err.println("=== About to read idx ===");
+            System.err.flush();
             try {
                 idx.read();
             } catch (IOException e) {
                 e.printStackTrace();
             }
+            System.err.println("=== idx.read() completed ===");
+            System.err.flush();
             addStreams();
+            System.err.println("=== addStreams() completed ===");
+            System.err.flush();
             lastRoute.Recompute(wind, water);
+            System.err.println("=== lastRoute.Recompute() completed ===");
+            System.err.flush();
 
+            System.err.println("=== About to call newRoute() ===");
+            System.err.flush();
             newRoute();
+            System.err.println("=== newRoute() completed, jim=" + jim + " ===");
+            System.err.flush();
 
+            System.err.println("=== About to create Continuous ===");
+            System.err.flush();
             continuous = new Continuous(this,null);
+            System.err.println("=== Continuous created ===");
+            System.err.flush();
 
+            System.err.println("=== About to call UpdateGraphics() ===");
+            System.err.flush();
             UpdateGraphics();
+            System.err.println("=== UpdateGraphics() completed ===");
+            System.err.flush();
             revalidate();
+            System.err.println("=== StreamPanel initialization complete ===");
+            System.err.flush();
         }
 
         void newRoute() {
@@ -1001,13 +1045,16 @@ class StreamFrame extends JFrame {
         BufferedImage image = new BufferedImage(1000, 500, BufferedImage.TYPE_INT_ARGB);
 
         void UpdateGraphics() {
+            System.out.println("UpdateGraphics() called, screen.enabled=" + screen.enabled);
             Graphics g = image.getGraphics();
             g.setColor(Color.WHITE);
             g.fillRect(0,0,image.getWidth(),image.getHeight());
             Graphics2D g2d = (Graphics2D) g;
             Font font = new Font("Arial", Font.BOLD, Main.fontSize);
-            if (!screen.enabled)
+            if (!screen.enabled) {
+                System.out.println("UpdateGraphics() returning early - screen not enabled");
                 return;
+            }
 
             // Set up SwingRenderer for this frame
             renderer.setGraphics(g2d, image.getWidth(), image.getHeight());
@@ -1024,41 +1071,56 @@ class StreamFrame extends JFrame {
                 }
             }
 
+            // Ensure projection is initialized for render() calls
+            if (projection == null)
+                projection = new MercatorProjection(screen);
+
             if (null != depth)
-                if (cMap.scaleLevel <0)
-                    depth.draw(g2d, screen, this);
+                if (cMap.scaleLevel < 0)
+                    depth.render(renderer, projection, UTC.getTimeInMillis());
             if (showWaves)
-                waves.draw(g2d, screen, UTC.getTimeInMillis());
-            cMap.draw(g,screen);
-            wvs.draw(g2d, screen);
+                waves.render(renderer, projection, UTC.getTimeInMillis());
+            cMap.render(renderer, projection, UTC.getTimeInMillis());
+            wvs.render(renderer, projection, UTC.getTimeInMillis());
             if(Main.useIceZone)
-                Boat.iceZone.draw(g2d,screen);
+                Boat.iceZone.render(renderer, projection, UTC.getTimeInMillis());
             for (TidalStream tidalStream : tidalStreams)
-                tidalStream.draw(g2d, screen, UTC, this);
-            g.setColor(Color.LIGHT_GRAY);
+                tidalStream.render(renderer, projection, UTC.getTimeInMillis());
+            renderer.setColor(Colors.LIGHT_GRAY);
             for (Chart chart : charts)
-                chart.draw(g2d, screen, this);
+                chart.render(renderer, projection, UTC.getTimeInMillis());
             if(Math.abs(screen.lon2 - screen.lon1)<10)
-                idx.draw(g2d, screen);
+                idx.render(renderer, projection, UTC.getTimeInMillis());
             if(showWind)
-                wind.draw(g2d, screen,UTC.getTimeInMillis());
+                wind.render(renderer, projection, UTC.getTimeInMillis());
             if(Main.useWater)
                 if(showWater)
-                    water.draw(g2d, screen, UTC.getTimeInMillis());
+                    water.render(renderer, projection, UTC.getTimeInMillis());
 
-            lastRoute.draw(g2d, screen, UTC.getTimeInMillis());
+            System.out.println("About to call lastRoute.render(), jim=" + jim);
+            System.out.flush();
+            lastRoute.render(renderer, projection, UTC.getTimeInMillis());
+            System.out.println("lastRoute.render() returned");
+            System.out.flush();
+            
+            System.out.println("About to render DE, jim=" + jim);
             if(boat.DE != null) {
-                boat.DE.draw(g2d, screen, UTC.getTimeInMillis(),Boat.showCandidates);
-//                boat.DE.drawTWA(g2d);
+                System.out.println("boat.DE is not null, rendering DE");
+                boat.DE.render(renderer, projection, UTC.getTimeInMillis());
+                System.out.println("boat.DE.render() returned");
             }
+            System.out.flush();
+            System.out.println("About to render waypoints, jim=" + jim);
             for (Waypoint w:boat.waypoints) {
-                w.Draw(g2d, screen);
+                w.render(renderer, projection, UTC.getTimeInMillis());
             }
-
-            jim.draw(g2d, screen, UTC.getTimeInMillis(),Boat.showCandidates);
-//            jim.drawTWA(g2d);
-
-            boat.draw(g2d, screen, UTC.getTimeInMillis());
+            System.out.flush();
+            System.err.println("About to call jim.render(), jim=" + jim);
+            System.err.flush();
+            jim.render(renderer, projection, UTC.getTimeInMillis());
+            System.err.println("jim.render() returned");
+            System.err.flush();
+            boat.render(renderer, projection, UTC.getTimeInMillis());
 
             g.setColor(Color.black);
 
@@ -1142,6 +1204,7 @@ class StreamFrame extends JFrame {
         }
 
         public  Waypoint[] ParseRoute(String string) {
+            System.out.println("Parsing route:");
             String[] lines = string.split("\n");
             LinkedList<Waypoint> waypoints = new LinkedList<>();
             List<String> windList = new LinkedList<>();
@@ -1283,9 +1346,11 @@ class StreamFrame extends JFrame {
         StringBuilder sb = new StringBuilder();
         assert fileList != null;
         System.out.print("\nReading ");
+        System.out.flush();
         int i = 0;
         for (File file : fileList) {
             System.out.print(file.getName() + " ("+i+"). ");
+            System.out.flush();
             i += 1;
             try {
                 sb.setLength(0);
@@ -1295,18 +1360,31 @@ class StreamFrame extends JFrame {
                 assert read == b.length;
                 sb.append(new String(b));
                 sb.append("\n");
+                is.close();
             } catch (IOException e) {
                 System.out.println("Internal error. Could not read polar " + file.getName());
             }
+            System.err.println("Calling ScanVirtualRegattaPolar for " + file.getName());
+            System.err.flush();
             s.boat.polar.ScanVirtualRegattaPolar(sb.toString(), file.getName());
+            System.err.println("ScanVirtualRegattaPolar completed for " + file.getName());
+            System.err.flush();
         }
+        System.err.println("\n=== Combining polars ===");
+        System.err.flush();
         s.boat.polar.combinePolars();
+        System.err.println("=== combinePolars() done ===");
+        System.err.flush();
         s.boat.polar.computeVMGPolar();
+        System.err.println("=== computeVMGPolar() done ===");
+        System.err.flush();
         System.out.println();
 
 //        System.out.println(s.boat.polar.sail.print());
 //        System.out.println(s.boat.polar.printGibeAngles());
 
+        System.err.println("=== Parsing screen coordinates ===");
+        System.err.flush();
         String[] temp = Main.SCREEN.split(" ");
         if (temp.length != 4) {
             System.out.print(
@@ -1319,7 +1397,11 @@ class StreamFrame extends JFrame {
         float screenLeft = Fix.parseLongitude(temp[1]);
         float screenRight = Fix.parseLongitude(temp[3]);
 
+        System.err.println("=== Creating Mercator screen ===");
+        System.err.flush();
         s.screen = new Mercator(screenTop, screenLeft, screenRight);
+        System.err.println("=== Mercator screen created ===");
+        System.err.flush();
 
         File file = new File(Main.root + File.separator + "TidalStreamLog.txt");
         try {

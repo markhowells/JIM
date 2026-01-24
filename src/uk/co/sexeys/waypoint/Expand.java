@@ -30,10 +30,10 @@ public class Expand extends Waypoint{
         String[] temp = string.split("Expand: ");
         String[] temp1 = temp[1].split("\n");
         String[] temp2 = temp1[0].split(" ");
-        if (temp2.length != 7) {
+        if (temp2.length < 7) {
             System.out.print(
                     "Your input does not follow the format\n" + format +
-                            "Specifically I was expecting seven space characters.\n");
+                            "Specifically I was expecting at least seven tokens.\n");
             System.exit(0);
         }
         if (!temp2[1].equals("nm")) {
@@ -44,7 +44,9 @@ public class Expand extends Waypoint{
         }
         position = previous.position;
         this.radius = Float.parseFloat(temp2[0]) * (float) phys.mPerNM;
+        System.out.println("Expand waypoint created: radius=" + radius + "m (" + temp2[0] + " nm)");
         ReadJIMData(temp2);
+        System.out.println("  ReadJIMData: binWidth=" + binWidth + ", numberOfBins=" + numberOfBins + ", timeStep=" + timeStep);
         this.obstructions = new Obstruction(obstructions);
     }
 }

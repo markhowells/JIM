@@ -83,7 +83,7 @@ public class Polar {
         }
     }
 
-    void ScanVirtualRegattaPolar(String sPolar, String name) {     //    http://toxcct.free.fr/polars/generator.htm
+    public void ScanVirtualRegattaPolar(String sPolar, String name) {     //    http://toxcct.free.fr/polars/generator.htm
         Record r = new Record(name);
         String[] lines = sPolar.split("\n");
         String[][] values = new String[lines.length][];
@@ -163,7 +163,7 @@ public class Polar {
         polars.add(r);
     }
 
-    void combinePolars() {
+    public void combinePolars() {
         int xLength = 0, yLength = 0;
         for (int index = 0; index < polars.size(); index++) {
             Record p = polars.get(index);
@@ -208,7 +208,7 @@ public class Polar {
         }
     }
 
-    void computeVMGPolar() {
+    public void computeVMGPolar() {
         VMG = new BiLinear();
         VMG.xp = raw.xp;
         VMG.yp = raw.yp;

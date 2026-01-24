@@ -1,5 +1,9 @@
 package uk.co.sexeys;
 
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 import uk.co.sexeys.water.Water;
 import uk.co.sexeys.waypoint.InterimFix;
 import uk.co.sexeys.wind.Wind;
@@ -15,10 +19,10 @@ import java.nio.file.Paths;
 import java.util.*;
 
 
-public class LastRoute {
+public class LastRoute implements Renderable {
     Path path = Paths.get(Main.root + File.separator + "LastRoute.txt");
-    LinkedList<InterimFix> waypoints= new LinkedList<>();
-    LastRoute() {
+    public LinkedList<InterimFix> waypoints= new LinkedList<>();
+    public LastRoute() {
         try {
             String content = Files.readString(path, Charset.defaultCharset());
             String[] lines = content.split("\n");
@@ -154,5 +158,42 @@ public class LastRoute {
             g.setStroke(fine);
         }
 
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        Vector2 p, p0;
+
+        renderer.setColor(Colors.DARK_GRAY);
+        renderer.setStrokeWidth(1);
+
+        if (waypoints.isEmpty())
+            return;
+        p0 = projection.fromRadiansToPoint(waypoints.getFirst().position);
+        for (InterimFix w : waypoints) {
+            w.render(renderer, projection, time);
+            p = projection.fromRadiansToPoint(w.position);
+            renderer.drawLine(p0.x, p0.y, p.x, p.y);
+            p0 = projection.fromRadiansToPoint(w.position);
+        }
+        InterimFix Y = null, previous = waypoints.getFirst();
+        for (InterimFix w : waypoints) {
+            if (w.time >= time) {
+                Y = w;
+                break;
+            }
+            previous = w;
+        }
+        if (null != Y) {
+            p0 = projection.fromRadiansToPoint(Y.position);
+            p = projection.fromRadiansToPoint(previous.position);
+            Vector2 dp = p0.minus(p);
+            float t = (float) (time - previous.time) / (float) (Y.time - previous.time);
+            p0 = p.plus(dp.scale(t));
+            renderer.setStrokeWidth(3);
+            renderer.drawLine(p0.x, p0.y - 10, p0.x, p0.y + 10);
+            renderer.drawLine(p0.x - 10, p0.y, p0.x + 10, p0.y);
+            renderer.setStrokeWidth(1);
+        }
     }
 }

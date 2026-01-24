@@ -89,6 +89,7 @@ route:
   expand:
     distance: "20 nm"
     bins: 360
+    binSize: "1 nm"
     stepHours: 0.1
 
   # Areas to avoid (list of polygon coordinates with optional name)

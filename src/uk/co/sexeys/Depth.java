@@ -25,7 +25,7 @@ public class Depth implements Renderable {
 
     private int pointsPerMinute;
 
-    Depth(String f, int p) {
+    public Depth(String f, int p) {
         file = f;
         pointsPerMinute = p;
     }
@@ -175,10 +175,13 @@ public class Depth implements Renderable {
                 if (cache.size() > 30)
                     cache.removeLast();
 
-                String imageKey = "depth_" + lat + "_" + lon;
                 Vector2 stl = projection.fromLatLngToPoint(lat + 1, lon + 1.0 / 60 / 4);
                 Vector2 sbr = projection.fromLatLngToPoint(lat, lon + 1 + 1.0 / 60 / 4);
-                renderer.drawImage(imageKey, stl.x, stl.y, sbr.x, sbr.y, 0, stride, stride, 0);
+                // Use SwingRenderer's direct drawImage method for BufferedImage
+                if (renderer instanceof uk.co.sexeys.ui.swing.SwingRenderer) {
+                    ((uk.co.sexeys.ui.swing.SwingRenderer) renderer).drawImage(
+                            hit.image, stl.x, stl.y, sbr.x, sbr.y, 0, stride, stride, 0);
+                }
             }
         }
     }

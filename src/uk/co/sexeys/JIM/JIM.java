@@ -3,6 +3,10 @@ package uk.co.sexeys.JIM;
 // Jim's Isochrone Method
 
 import uk.co.sexeys.*;
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 import uk.co.sexeys.water.Tide;
 import uk.co.sexeys.water.Water;
 import uk.co.sexeys.waypoint.Depart;
@@ -14,7 +18,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
 
-public abstract  class JIM {
+public abstract class JIM implements Renderable {
     public Boat boat;
     public Wind wind;
     Water tide;
@@ -107,6 +111,106 @@ public abstract  class JIM {
         g.drawLine((int)p0.x, (int) p0.y-10, (int) p0.x, (int) p0.y+10);
         g.drawLine((int)p0.x-10, (int) p0.y, (int) p0.x+10, (int) p0.y);
         g.setStroke(fine);
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        // Early return if not initialized
+        if (boat == null || boat.waypoints == null || boat.waypoints.length < 2) return;
+        if (newAgents == null || keyAgent == null) return;
+
+        Vector2 p, p0;
+        renderer.setColor(Colors.BLACK);
+
+        GreatCircle gc = new GreatCircle(boat.waypoints[0].position, boat.waypoints[1].position);
+        // Guard against zero distance (waypoints at same position) which causes infinite loop
+        // This can happen when Depart and Expand share the same position
+        if (gc.d12 <= 0 || Double.isNaN(gc.d12) || Double.isInfinite(gc.d12)) {
+            // Draw agent tracks without the great circle reference track
+            drawAgentTracks(renderer, projection, time);
+            return;
+        }
+
+        p0 = projection.fromRadiansToPoint(gc.point(gc.d01));
+        for (double d = gc.d01; d < gc.d01 + gc.d12 + 0.00001; d += gc.d12 / 10) {
+            p = projection.fromRadiansToPoint(gc.point(d));
+            renderer.drawLine(p0.x, p0.y, p.x, p.y);
+            p0.x = p.x;
+            p0.y = p.y;
+        }
+
+        double XT = boat.waypoints[1].binWidth * boat.waypoints[1].numberOfBins / phys.R;
+        p0 = projection.fromRadiansToPoint(gc.crossTrack(gc.d01, XT, Math.toRadians(90)));
+        for (double d = gc.d01; d < gc.d01 + gc.d12 + 0.00001; d += gc.d12 / 10) {
+            p = projection.fromRadiansToPoint(gc.crossTrack(d, XT, Math.toRadians(90)));
+            renderer.drawLine(p0.x, p0.y, p.x, p.y);
+            p0.x = p.x;
+            p0.y = p.y;
+        }
+        p0 = projection.fromRadiansToPoint(gc.crossTrack(gc.d01, XT, Math.toRadians(-90)));
+        for (double d = gc.d01; d < gc.d01 + gc.d12 + 0.00001; d += gc.d12 / 10) {
+            p = projection.fromRadiansToPoint(gc.crossTrack(d, XT, Math.toRadians(-90)));
+            renderer.drawLine(p0.x, p0.y, p.x, p.y);
+            p0.x = p.x;
+            p0.y = p.y;
+        }
+
+        renderer.setColor(Colors.RED);
+        p0 = projection.fromRadiansToPoint(gc.point(gc.d01));
+        p = projection.fromRadiansToPoint(gc.crossTrack(gc.d01, XT, Math.toRadians(-50)));
+        renderer.drawLine(p0.x, p0.y, p.x, p.y);
+        p = projection.fromRadiansToPoint(gc.crossTrack(gc.d01, XT, Math.toRadians(50)));
+        renderer.drawLine(p0.x, p0.y, p.x, p.y);
+        renderer.setColor(Colors.BLACK);
+
+        drawAgentTracks(renderer, projection, time);
+    }
+
+    private void drawAgentTracks(Renderer renderer, Projection projection, long time) {
+        Vector2 p, p0;
+
+        renderer.setColor(Colors.BLACK);
+        renderer.setStrokeWidth(1);
+        for (Agent X : newAgents) {
+            if (X == keyAgent)
+                renderer.setStrokeWidth(3);
+            else
+                renderer.setStrokeWidth(1);
+            Agent Y = X;
+            while (Y.previousAgent != null) {
+                p0 = projection.fromRadiansToPoint(Y.position);
+                p = projection.fromRadiansToPoint(Y.previousAgent.position);
+                renderer.drawLine(p0.x, p0.y, p.x, p.y);
+                Y = Y.previousAgent;
+            }
+        }
+
+        renderer.setStrokeWidth(3);
+        Agent Y = keyAgent;
+        while (Y.previousAgent != null) {
+            p0 = projection.fromRadiansToPoint(Y.position);
+            p = projection.fromRadiansToPoint(Y.previousAgent.position);
+            renderer.drawLine(p0.x, p0.y, p.x, p.y);
+            Y = Y.previousAgent;
+        }
+
+        Y = keyAgent;
+        while (Y.previousAgent != null) {
+            if (Y.previousAgent.time <= time)
+                break;
+            if (Y.previousAgent.previousAgent == null)
+                break;
+            Y = Y.previousAgent;
+        }
+        if (Y.previousAgent == null) return;
+        p0 = projection.fromRadiansToPoint(Y.position);
+        p = projection.fromRadiansToPoint(Y.previousAgent.position);
+        Vector2 dp = p0.minus(p);
+        float t = (float) (time - Y.previousAgent.time) / (float) (Y.time - Y.previousAgent.time);
+        p0 = p.plus(dp.scale(t));
+        renderer.drawLine(p0.x, p0.y - 10, p0.x, p0.y + 10);
+        renderer.drawLine(p0.x - 10, p0.y, p0.x + 10, p0.y);
+        renderer.setStrokeWidth(1);
     }
 
     public void drawTWA(Graphics2D g) {

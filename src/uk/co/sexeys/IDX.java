@@ -23,7 +23,7 @@ public class IDX implements Renderable {
     private static final int SOURCE_TYPE_ASCII_HARMONIC = 1;
     private String fileName;
 
-    IDX(String fileName) {
+    public IDX(String fileName) {
         this.fileName = fileName;
     }
 
@@ -138,7 +138,7 @@ public class IDX implements Renderable {
     }
 
 
-    void read() throws IOException {
+    public void read() throws IOException {
         FileInputStream is = new FileInputStream(fileName+".idx");
         byte[] buffer = new byte[is.available()];
         is.read(buffer);

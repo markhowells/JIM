@@ -5,6 +5,7 @@ import uk.co.sexeys.*;
 import java.awt.*;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.LinkedList;
 import java.util.TimeZone;
 
 public class Depart extends Waypoint{
@@ -46,7 +47,7 @@ public class Depart extends Waypoint{
     }
 
     public Depart() {
-        this.obstructions = new Obstruction(null);
+        this.obstructions = new Obstruction((LinkedList<Obstruction>) null);
     }
     public Depart(String string) {
         String[] temp = string.split("Depart: ");
@@ -80,7 +81,7 @@ Send an email to help@course2steer.co.uk for help.
         time = Fix.parseTime(temp2[2], temp2[3]).getTimeInMillis();
     }
     public Depart(Fix f) {
-        this.obstructions = new Obstruction(null);
+        this.obstructions = new Obstruction((LinkedList<Obstruction>) null);
         position = new Vector2(f.position);
         time=f.time;
     }

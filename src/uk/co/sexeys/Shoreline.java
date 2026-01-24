@@ -155,7 +155,7 @@ public class Shoreline {
             }
         }
     }
-    Shoreline(float WVSResolution) {
+    public Shoreline(float WVSResolution) {
         scale(WVSResolution);
     }
 

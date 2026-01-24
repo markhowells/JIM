@@ -142,6 +142,18 @@ public class CrossTrack extends JIM{
 
             List<Agent> nextAgents = NextTimeStep(newAgents, route.currentTime, angularRange);
             CullAgents(nextAgents, newAgents);
+            // Debug: log agent count and bearing spread on first few iterations
+            if (route.legElapsedTime < 1000000 && route.legs[route.currentLeg].waypoint instanceof Expand) {
+                float minBearing = 360, maxBearing = -360;
+                for (Agent a : newAgents) {
+                    Vector2 res = new Vector2();
+                    GreatCircle.rangeAndBearing(route.legs[route.currentLeg].waypoint.position, a.position, res);
+                    if (res.x < minBearing) minBearing = res.x;
+                    if (res.x > maxBearing) maxBearing = res.x;
+                }
+                logger.info("Expand phase: time={} agents={} bearingRange=[{} to {}]",
+                    route.legElapsedTime, newAgents.size(), minBearing, maxBearing);
+            }
             if (newAgents.isEmpty()) {
                 logger.warn("For some reason all routes have disappeared. Stopped routing. Check the map for errors. Consider adding/moving gate waypoints.");
                 keepGoing = false;

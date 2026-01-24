@@ -2,11 +2,15 @@ package uk.co.sexeys.water;
 
 import uk.co.sexeys.Mercator;
 import uk.co.sexeys.Vector2;
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 
 import java.awt.*;
 
 
-public abstract class Water {
+public abstract class Water implements Renderable {
     static final int arrowSize = 20;
     public enum SOURCE {
         UNKNOWN,
@@ -98,6 +102,40 @@ public abstract class Water {
         g.setStroke(new BasicStroke(1));
     }
 
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        Vector2 topLeft = projection.getTopLeft();
+        Vector2 bottomRight = projection.getBottomRight();
+
+        double dx = (bottomRight.x - topLeft.x) / 20;
+        double dy = (topLeft.y - bottomRight.y) / 20;
+        Vector2 v = new Vector2();
+        SOURCE source;
+        renderer.setColor(Colors.BLUE);
+
+        for (double i = topLeft.x + dx; i < bottomRight.x; i += dx) {
+            for (double j = bottomRight.y + dy; j < topLeft.y; j += dy) {
+                Vector2 p = projection.fromLatLngToPoint(j, i);
+                source = getValue(new Vector2((float) i, (float) j), time, v);
+
+                if (source != SOURCE.UNKNOWN) {
+                    float magnitude = (float) Math.sqrt(v.x * v.x + v.y * v.y);
+                    if (0 == magnitude)
+                        continue;
+                    if (magnitude < 0.2) {
+                        renderer.setStrokeWidth(1);
+                        renderer.drawLine(p.x, p.y,
+                                p.x + v.x * arrowSize / 0.2f, p.y - v.y * arrowSize / 0.2f);
+                    } else {
+                        renderer.setStrokeWidth((int) (magnitude * 5));
+                        renderer.drawLine(p.x, p.y,
+                                p.x + v.x * arrowSize / magnitude, p.y - v.y * arrowSize / magnitude);
+                    }
+                }
+            }
+        }
+        renderer.setStrokeWidth(1);
+    }
 
 //    public void draw(Graphics2D g, Mercator screen, long time) {
 //        double dx = (screen.bottomRight.x - screen.topLeft.x)/20;

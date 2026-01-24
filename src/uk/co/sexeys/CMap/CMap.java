@@ -5,13 +5,16 @@ package uk.co.sexeys.CMap;
 
 import uk.co.sexeys.Mercator;
 import uk.co.sexeys.Vector2;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 
 import java.awt.*;
 import java.awt.geom.*;
 import java.util.*;
 import java.util.List;
 
-public class CMap {
+public class CMap implements Renderable {
     public int scaleLevel;
 
     private final CIBCache cibCache = new CIBCache();
@@ -134,6 +137,116 @@ public class CMap {
             }
         }
         g2.dispose();
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        if (scaleLevel < 0) return; // Chart is off
+
+        for (DrawingInstructions inst : instructions) {
+            Vector2 leftBottom = projection.fromLatLngToPoint(inst.cib.lat_min, inst.cib.lon_min);
+            Vector2 rightTop = projection.fromLatLngToPoint(inst.cib.lat_max, inst.cib.lon_max);
+
+            float left = leftBottom.x;
+            float bottom = leftBottom.y;
+            float right = rightTop.x;
+            float top = rightTop.y;
+
+            // Skip if outside viewport
+            if (left > projection.getWidth()) continue;
+            if (right < 0) continue;
+            if (bottom < 0) continue;
+            if (top > projection.getHeight()) continue;
+
+            float f_x = (right - left) / 65536.0f;
+            float f_y = (top - bottom) / 65536.0f;
+
+            // depth10m - light cyan
+            renderer.setColor(0xD7, 0xFF, 0xFF);
+            renderer.setSolidStroke(1f);
+            for (Polygon poly : inst.depth10m) {
+                renderPolygon(renderer, poly, left, bottom, f_x, f_y);
+            }
+
+            // shallow and obstruction - blue-cyan
+            renderer.setColor(0xA2, 0xE0, 0xEB);
+            for (Polygon poly : inst.shallow) {
+                renderPolygon(renderer, poly, left, bottom, f_x, f_y);
+            }
+            for (Polygon poly : inst.obstruction) {
+                renderPolygon(renderer, poly, left, bottom, f_x, f_y);
+            }
+
+            // interTidal - green
+            renderer.setColor(0x62, 0xAC, 0x71);
+            for (Polygon poly : inst.interTidal) {
+                renderPolygon(renderer, poly, left, bottom, f_x, f_y);
+            }
+
+            // land - tan/sand color
+            renderer.setColor(0xF6, 0xC9, 0x6E);
+            for (Polygon poly : inst.land) {
+                renderPolygon(renderer, poly, left, bottom, f_x, f_y);
+            }
+
+            // builtUp - darker tan
+            renderer.setColor(0xC5, 0x9C, 0x4D);
+            for (Polygon poly : inst.builtUp) {
+                renderPolygon(renderer, poly, left, bottom, f_x, f_y);
+            }
+
+            // coastline - black lines
+            renderer.setColor(0, 0, 0);
+            renderer.setSolidStroke(1f);
+            for (Path2D path : inst.coastline) {
+                renderPath(renderer, path, left, bottom, f_x, f_y);
+            }
+
+            // rocks - black crosses
+            renderer.setSolidStroke(2f);
+            for (Point p : inst.rocks) {
+                float tx = left + p.x * f_x;
+                float ty = bottom + p.y * f_y;
+                renderer.drawLine(tx - 5, ty, tx + 5, ty);
+                renderer.drawLine(tx, ty - 5, tx, ty + 5);
+            }
+
+            // childCharts - red rectangles
+            renderer.setColor(255, 0, 0);
+            for (double[] c : inst.childCharts) {
+                Vector2 p1 = projection.fromLatLngToPoint(c[0], c[1]);
+                Vector2 p2 = projection.fromLatLngToPoint(c[2], c[3]);
+                renderer.drawRect(p1.x, p2.y, p2.x - p1.x, p1.y - p2.y);
+            }
+        }
+    }
+
+    private void renderPolygon(Renderer renderer, Polygon poly, float offsetX, float offsetY, float scaleX, float scaleY) {
+        if (poly.npoints == 0) return;
+        float[] xPoints = new float[poly.npoints];
+        float[] yPoints = new float[poly.npoints];
+        for (int i = 0; i < poly.npoints; i++) {
+            xPoints[i] = offsetX + poly.xpoints[i] * scaleX;
+            yPoints[i] = offsetY + poly.ypoints[i] * scaleY;
+        }
+        renderer.fillPolygon(xPoints, yPoints, poly.npoints);
+    }
+
+    private void renderPath(Renderer renderer, Path2D path, float offsetX, float offsetY, float scaleX, float scaleY) {
+        PathIterator pi = path.getPathIterator(null);
+        float[] coords = new float[6];
+        float lastX = 0, lastY = 0;
+        while (!pi.isDone()) {
+            int type = pi.currentSegment(coords);
+            float x = offsetX + coords[0] * scaleX;
+            float y = offsetY + coords[1] * scaleY;
+            if (type == PathIterator.SEG_LINETO) {
+                renderer.drawLine(lastX, lastY, x, y);
+            }
+            lastX = x;
+            lastY = y;
+            pi.next();
+        }
     }
 }
 

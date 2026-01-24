@@ -1,12 +1,17 @@
 package uk.co.sexeys;
 
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
+
 import java.awt.*;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
-public class Obstruction {
+public class Obstruction implements Renderable {
     static public Obstruction active = null;
     public Line[] data = null;
 
@@ -42,7 +47,21 @@ public class Obstruction {
             g.setColor(Color.BLACK);
         }
     }
-    Obstruction(String obstructions) {
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        if (data != null) {
+            renderer.setColor(Colors.RED);
+
+            for (Line l : data) {
+                Vector2 p = projection.fromLatLngToPoint(l.start.y, l.start.x);
+                Vector2 q = projection.fromLatLngToPoint(l.end.y, l.end.x);
+                renderer.drawLine(q.x, q.y, p.x, p.y);
+            }
+            renderer.setColor(Colors.BLACK);
+        }
+    }
+    public Obstruction(String obstructions) {
         LinkedList<Line> lines = new LinkedList<>();
         String[] obstructionLine = obstructions.split("Obstruction: ");
         String[] points = obstructionLine[1].split(";");

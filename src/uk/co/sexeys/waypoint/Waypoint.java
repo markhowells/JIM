@@ -1,9 +1,13 @@
 package uk.co.sexeys.waypoint;
 
 import uk.co.sexeys.*;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
+
 import java.awt.*;
 
-public abstract class Waypoint {
+public abstract class Waypoint implements Renderable {
     public Vector2 position = null; // radians
     public Obstruction obstructions;
     public int numberOfBins = 0;
@@ -57,6 +61,17 @@ Send an email to help@course2steer.co.uk for help.
         g.drawLine((int) p.x, (int) p.y - 10, (int) p.x, (int) p.y + 10);
         g.drawRect((int) p.x - 5, (int) p.y - 5,10, 10);
         obstructions.Draw(g,screen);
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        Vector2 p = projection.fromRadiansToPoint(position);
+        renderer.drawLine(p.x - 10, p.y, p.x + 10, p.y);
+        renderer.drawLine(p.x, p.y - 10, p.x, p.y + 10);
+        renderer.drawRect(p.x - 5, p.y - 5, 10, 10);
+        if (obstructions != null) {
+            obstructions.render(renderer, projection, time);
+        }
     }
 
     public void ReadJIMData(String[] fields) {

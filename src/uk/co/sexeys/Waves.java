@@ -118,6 +118,7 @@ public class Waves implements Renderable {
         }
         float a = data[lastIndex].getValue(p);
         float b = data[lastIndex - 1].getValue(p);
+        
         final long ta = data[lastIndex].time;
         final long tb = data[lastIndex - 1].time;
         final double dt = tb - ta;
@@ -141,10 +142,13 @@ public class Waves implements Renderable {
 
     public Waves(List<String> files) {// List of wave files
         final ArrayList<Record> dataAL = new ArrayList<>();
+        System.out.println("Loading wave files:");
         for (String f : files) {
             if (f.toLowerCase().endsWith(".grb") || f.toLowerCase().endsWith(".grib") || f.toLowerCase().endsWith(".grib2")) {
+                System.out.println("Reading GRIB wave file: " + f);
                 ReadGribFile(f, dataAL);
             } else {
+                System.out.println("Reading NetCDF wave file: " + f);
                 ReadNetCDFFile(f, dataAL);
             }
         }
@@ -275,16 +279,15 @@ public class Waves implements Renderable {
     void draw(Graphics2D g, Mercator screen, long time) {
         double dx = (screen.bottomRight.x - screen.topLeft.x) / 20;
         double dy = (screen.topLeft.y - screen.bottomRight.y) / 20;
-        Vector2 v = new Vector2();
-        g.setColor(Color.blue);
+        g.setColor(Color.red);
         for (double i = screen.topLeft.x + dx; i < screen.bottomRight.x; i += dx) {
             for (double j = screen.bottomRight.y + dy; j < screen.topLeft.y; j += dy) {
                 Vector2 p = screen.fromLatLngToPoint(j, i);
-                float height  =  getValue(new Vector2(i, j), time);
-                g.setColor(Color.red);
+                float height = getValue(new Vector2((float) i, (float) j), time);
                 int rect = 30;
-                if (height > Main.waveWarning) {
-                    g.fillRect((int) (p.x - rect/2), (int) (p.y - rect/2), (int) rect, (int) rect);
+                // Check for valid height (not missing/undefined value) before drawing warning
+                if (height > 0 && height < 1e10 && height > Main.waveWarning) {
+                    g.fillRect((int) (p.x - rect/2), (int) (p.y - rect/2), rect, rect);
                 }
             }
         }
@@ -299,14 +302,14 @@ public class Waves implements Renderable {
         double dx = (bottomRight.x - topLeft.x) / 20;
         double dy = (topLeft.y - bottomRight.y) / 20;
 
-        renderer.setColor(Colors.BLUE);
         for (double i = topLeft.x + dx; i < bottomRight.x; i += dx) {
             for (double j = bottomRight.y + dy; j < topLeft.y; j += dy) {
                 Vector2 p = projection.fromLatLngToPoint(j, i);
                 float height = getValue(new Vector2((float) i, (float) j), time);
-                renderer.setColor(Colors.RED);
                 int rect = 30;
-                if (height > Main.waveWarning) {
+                // Check for valid height (not missing/undefined value) before drawing warning
+                if (height > 0 && height < 1e10 && height > Main.waveWarning) {
+                    renderer.setColor(Colors.RED);
                     renderer.fillRect(p.x - rect / 2f, p.y - rect / 2f, rect, rect);
                 }
             }

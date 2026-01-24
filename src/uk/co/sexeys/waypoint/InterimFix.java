@@ -1,6 +1,8 @@
 package uk.co.sexeys.waypoint;
 
 import uk.co.sexeys.*;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderer;
 
 import java.awt.*;
 import java.text.SimpleDateFormat;
@@ -12,7 +14,7 @@ import java.util.*;
 
 import static java.lang.Math.abs;
 
-public class InterimFix extends Depart{
+public class InterimFix extends Depart {
     public float speed; // knots
     public float heading; // degrees
     public float TWS; // knots
@@ -23,7 +25,7 @@ public class InterimFix extends Depart{
     public Stamina stamina = new Stamina();
 
     public InterimFix() {
-        this.obstructions = new Obstruction(null);
+        this.obstructions = new Obstruction((LinkedList<Obstruction>) null);
     }
 
     public Vector2 GetHeading() {return new Vector2(heading);}
@@ -44,6 +46,19 @@ public class InterimFix extends Depart{
         //TODO TWA
         //TODO speed and TWS?
         obstructions.Draw(g,screen);
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        Vector2 p = projection.fromRadiansToPoint(position);
+        renderer.drawLine(p.x - 10, p.y, p.x + 10, p.y);
+        renderer.drawLine(p.x, p.y - 10, p.x, p.y + 10);
+        renderer.drawRect(p.x - 5, p.y - 5, 10, 10);
+        Vector2 h = new Vector2(heading);
+        renderer.drawLine(p.x, p.y, p.x + 50 * h.x, p.y - 50 * h.y);
+        if (obstructions != null) {
+            obstructions.render(renderer, projection, time);
+        }
     }
 
     public InterimFix(String string, LinkedList<Obstruction> obstructions) {
@@ -160,7 +175,7 @@ or
     }
 
     public InterimFix(Fix f) {
-        this.obstructions = new Obstruction(null);
+        this.obstructions = new Obstruction((LinkedList<Obstruction>) null);
         position = new Vector2(f.position);
         time=f.time;
         speed = f.velocity.mag()*phys.knots;

@@ -2,6 +2,10 @@ package uk.co.sexeys.wind;
 
 import uk.co.sexeys.Mercator;
 import uk.co.sexeys.Vector2;
+import uk.co.sexeys.rendering.Colors;
+import uk.co.sexeys.rendering.Projection;
+import uk.co.sexeys.rendering.Renderable;
+import uk.co.sexeys.rendering.Renderer;
 import uk.co.sexeys.water.Water;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -12,7 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 
-public abstract class Wind {
+public abstract class Wind implements Renderable {
     static final int arrowSize = 2;
     public enum SOURCE {
         UNKNOWN,
@@ -155,6 +159,42 @@ public abstract class Wind {
                 g.drawLine((int) p.x, (int) p.y,
                         (int) (p.x + v.x* arrowSize), (int) (p.y - v.y* arrowSize));
                 g.fillRect((int) p.x-1, (int) p.y-1, 2, 2);
+            }
+        }
+    }
+
+    @Override
+    public void render(Renderer renderer, Projection projection, long time) {
+        Vector2 topLeft = projection.getTopLeft();
+        Vector2 bottomRight = projection.getBottomRight();
+
+        double dx = (bottomRight.x - topLeft.x) / 20;
+        double dy = (topLeft.y - bottomRight.y) / 20;
+        Vector2 v = new Vector2();
+        renderer.setColor(Colors.BLACK);
+
+        for (double i = topLeft.x + dx; i < bottomRight.x; i += dx) {
+            for (double j = bottomRight.y + dy; j < topLeft.y; j += dy) {
+                Vector2 p = projection.fromLatLngToPoint(j, i);
+                SOURCE source;
+                try {
+                    source = getValue(new Vector2((float) i, (float) j), time, v);
+                } catch (Exception e) {
+                    continue;
+                }
+                if (source == SOURCE.PREVIOUS) {
+                    renderer.setColor(Colors.BLUE);
+                } else if (source == SOURCE.LATEST) {
+                    renderer.setColor(Colors.BLACK);
+                } else if (source == SOURCE.WEIGHTED) {
+                    renderer.setColor(Colors.DARK_GRAY);
+                } else if (source == SOURCE.PREVAILING) {
+                    renderer.setColor(Colors.GREEN);
+                } else {
+                    renderer.setColor(Colors.RED);
+                }
+                renderer.drawLine(p.x, p.y, p.x + v.x * arrowSize, p.y - v.y * arrowSize);
+                renderer.fillRect(p.x - 1, p.y - 1, 2, 2);
             }
         }
     }

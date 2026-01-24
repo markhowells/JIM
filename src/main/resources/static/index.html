@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JIM - Marine Route Optimization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        #header {
+            background: #16213e;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        #header h1 {
+            font-size: 1.5em;
+            color: #e94560;
+        }
+
+        #controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            background: #0f3460;
+            color: #eee;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #e94560;
+        }
+
+        .btn.active {
+            background: #e94560;
+        }
+
+        #time-display {
+            font-family: monospace;
+            font-size: 1.1em;
+            background: #0f3460;
+            padding: 8px 15px;
+            border-radius: 4px;
+        }
+
+        #main {
+            flex: 1;
+            display: flex;
+            position: relative;
+        }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #mapCanvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        #info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 300px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        #info-panel .row {
+            margin: 5px 0;
+        }
+
+        #info-panel .label {
+            color: #888;
+            margin-right: 10px;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5em;
+            color: #e94560;
+        }
+
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(233, 69, 96, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="header">
+            <h1>JIM - Marine Route Optimization</h1>
+            <div id="controls">
+                <button class="btn" id="btn-wind" onclick="toggleLayer('wind')">Wind</button>
+                <button class="btn" id="btn-tide" onclick="toggleLayer('tide')">Tide</button>
+                <button class="btn" id="btn-waves" onclick="toggleLayer('waves')">Waves</button>
+                <span>|</span>
+                <button class="btn" onclick="adjustTime(-60)">-1h</button>
+                <button class="btn" onclick="adjustTime(-1)">-1m</button>
+                <span id="time-display">Loading...</span>
+                <button class="btn" onclick="adjustTime(1)">+1m</button>
+                <button class="btn" onclick="adjustTime(60)">+1h</button>
+            </div>
+        </div>
+        <div id="main">
+            <div id="canvas-container">
+                <canvas id="mapCanvas"></canvas>
+                <div id="info-panel">
+                    <div class="row"><span class="label">Position:</span><span id="info-position">-</span></div>
+                    <div class="row"><span class="label">Wind:</span><span id="info-wind">-</span></div>
+                    <div class="row"><span class="label">Tide:</span><span id="info-tide">-</span></div>
+                    <div class="row"><span class="label">Waves:</span><span id="info-waves">-</span></div>
+                </div>
+                <div id="loading">Loading map data...</div>
+                <div id="error"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        const API_BASE = '/api/map';
+
+        // State
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        let layerStates = { wind: true, tide: true, waves: true };
+
+        // Resize canvas to fill container
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            render();
+        }
+
+        // Execute drawing commands on canvas
+        function executeCommands(commands) {
+            for (const cmd of commands) {
+                executeCommand(cmd);
+            }
+        }
+
+        function executeCommand(cmd) {
+            const p = cmd.params || {};
+
+            switch (cmd.type) {
+                case 'CLEAR':
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, p.width || canvas.width, p.height || canvas.height);
+                    break;
+
+                case 'SET_COLOR':
+                    const alpha = p.a !== undefined ? p.a / 255 : 1;
+                    ctx.fillStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
+                    ctx.strokeStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
+                    break;
+
+                case 'SET_STROKE_WIDTH':
+                    ctx.lineWidth = p.width;
+                    if (p.dashPattern && p.dashPattern.length > 0) {
+                        ctx.setLineDash(p.dashPattern);
+                    } else {
+                        ctx.setLineDash([]);
+                    }
+                    break;
+
+                case 'SET_FONT':
+                    const style = p.style === 1 ? 'bold ' : (p.style === 2 ? 'italic ' : '');
+                    ctx.font = `${style}${p.size}px ${p.name}`;
+                    break;
+
+                case 'DRAW_LINE':
+                    ctx.beginPath();
+                    ctx.moveTo(p.x1, p.y1);
+                    ctx.lineTo(p.x2, p.y2);
+                    ctx.stroke();
+                    break;
+
+                case 'DRAW_RECT':
+                    ctx.strokeRect(p.x, p.y, p.width, p.height);
+                    break;
+
+                case 'FILL_RECT':
+                    ctx.fillRect(p.x, p.y, p.width, p.height);
+                    break;
+
+                case 'DRAW_OVAL':
+                    ctx.beginPath();
+                    ctx.ellipse(p.x + p.width/2, p.y + p.height/2, p.width/2, p.height/2, 0, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    break;
+
+                case 'FILL_OVAL':
+                    ctx.beginPath();
+                    ctx.ellipse(p.x + p.width/2, p.y + p.height/2, p.width/2, p.height/2, 0, 0, 2 * Math.PI);
+                    ctx.fill();
+                    break;
+
+                case 'DRAW_ARC':
+                    ctx.beginPath();
+                    const startRad = -p.startAngle * Math.PI / 180;
+                    const endRad = -(p.startAngle + p.arcAngle) * Math.PI / 180;
+                    ctx.arc(p.x + p.width/2, p.y + p.height/2, p.width/2, startRad, endRad, p.arcAngle > 0);
+                    ctx.stroke();
+                    break;
+
+                case 'FILL_ARC':
+                    ctx.beginPath();
+                    const startRadF = -p.startAngle * Math.PI / 180;
+                    const endRadF = -(p.startAngle + p.arcAngle) * Math.PI / 180;
+                    ctx.moveTo(p.x + p.width/2, p.y + p.height/2);
+                    ctx.arc(p.x + p.width/2, p.y + p.height/2, p.width/2, startRadF, endRadF, p.arcAngle > 0);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+
+                case 'DRAW_POLYGON':
+                    if (p.xPoints && p.xPoints.length > 0) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.xPoints[0], p.yPoints[0]);
+                        for (let i = 1; i < p.xPoints.length; i++) {
+                            ctx.lineTo(p.xPoints[i], p.yPoints[i]);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+                    }
+                    break;
+
+                case 'FILL_POLYGON':
+                    if (p.xPoints && p.xPoints.length > 0) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.xPoints[0], p.yPoints[0]);
+                        for (let i = 1; i < p.xPoints.length; i++) {
+                            ctx.lineTo(p.xPoints[i], p.yPoints[i]);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    break;
+
+                case 'DRAW_POLYLINE':
+                    if (p.xPoints && p.xPoints.length > 0) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.xPoints[0], p.yPoints[0]);
+                        for (let i = 1; i < p.xPoints.length; i++) {
+                            ctx.lineTo(p.xPoints[i], p.yPoints[i]);
+                        }
+                        ctx.stroke();
+                    }
+                    break;
+
+                case 'DRAW_STRING':
+                    ctx.fillText(p.text, p.x, p.y);
+                    break;
+
+                case 'TRANSLATE':
+                    ctx.translate(p.tx, p.ty);
+                    break;
+
+                case 'ROTATE':
+                    if (p.x !== undefined) {
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.theta);
+                        ctx.translate(-p.x, -p.y);
+                    } else {
+                        ctx.rotate(p.theta);
+                    }
+                    break;
+
+                case 'SCALE':
+                    ctx.scale(p.sx, p.sy);
+                    break;
+
+                case 'SAVE':
+                    ctx.save();
+                    break;
+
+                case 'RESTORE':
+                    ctx.restore();
+                    break;
+
+                case 'SET_CLIP':
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(p.x, p.y, p.width, p.height);
+                    ctx.clip();
+                    break;
+
+                case 'CLEAR_CLIP':
+                    ctx.restore();
+                    break;
+            }
+        }
+
+        // Fetch and render the map
+        async function render() {
+            try {
+                const response = await fetch(`${API_BASE}/render?width=${canvas.width}&height=${canvas.height}`);
+                if (!response.ok) throw new Error('Render failed');
+                const data = await response.json();
+
+                executeCommands(data.commands);
+                updateTimeDisplay(data.timestamp);
+
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                console.error('Render error:', error);
+                showError('Failed to render map: ' + error.message);
+            }
+        }
+
+        // Update time display
+        function updateTimeDisplay(timestamp) {
+            const date = new Date(timestamp);
+            document.getElementById('time-display').textContent = date.toUTCString();
+        }
+
+        // Adjust time
+        async function adjustTime(minutes) {
+            try {
+                const response = await fetch(`${API_BASE}/time/adjust`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        deltaMinutes: minutes,
+                        width: canvas.width,
+                        height: canvas.height
+                    })
+                });
+                const data = await response.json();
+                executeCommands(data.commands);
+                updateTimeDisplay(data.timestamp);
+            } catch (error) {
+                console.error('Time adjust error:', error);
+            }
+        }
+
+        // Toggle layer
+        async function toggleLayer(layer) {
+            try {
+                layerStates[layer] = !layerStates[layer];
+                document.getElementById(`btn-${layer}`).classList.toggle('active', layerStates[layer]);
+
+                const response = await fetch(`${API_BASE}/layers/${layer}/toggle?width=${canvas.width}&height=${canvas.height}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                executeCommands(data.commands);
+            } catch (error) {
+                console.error('Toggle layer error:', error);
+            }
+        }
+
+        // Handle mouse events for pan
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+
+        canvas.addEventListener('mousemove', async (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (isDragging) {
+                const deltaX = e.clientX - lastX;
+                const deltaY = e.clientY - lastY;
+                lastX = e.clientX;
+                lastY = e.clientY;
+
+                try {
+                    const response = await fetch(`${API_BASE}/pan`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            deltaX: deltaX,
+                            deltaY: deltaY,
+                            width: canvas.width,
+                            height: canvas.height
+                        })
+                    });
+                    const data = await response.json();
+                    executeCommands(data.commands);
+                } catch (error) {
+                    console.error('Pan error:', error);
+                }
+            } else {
+                // Update hover info
+                try {
+                    const response = await fetch(`${API_BASE}/hover`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ x, y })
+                    });
+                    const data = await response.json();
+                    document.getElementById('info-position').textContent = data.position || '-';
+                    document.getElementById('info-wind').textContent = data.wind || '-';
+                    document.getElementById('info-tide').textContent = data.tide || '-';
+                    document.getElementById('info-waves').textContent = data.waves || '-';
+                } catch (error) {
+                    // Ignore hover errors
+                }
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvas.style.cursor = 'crosshair';
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            canvas.style.cursor = 'crosshair';
+        });
+
+        // Handle mouse wheel for zoom
+        canvas.addEventListener('wheel', async (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const factor = e.deltaY > 0 ? 1.2 : 1 / 1.2;
+
+            try {
+                const response = await fetch(`${API_BASE}/zoom`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        factor: factor,
+                        centerX: x,
+                        centerY: y,
+                        width: canvas.width,
+                        height: canvas.height
+                    })
+                });
+                const data = await response.json();
+                executeCommands(data.commands);
+            } catch (error) {
+                console.error('Zoom error:', error);
+            }
+        });
+
+        function showError(message) {
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // Initialize
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Set initial layer button states
+        document.getElementById('btn-wind').classList.add('active');
+        document.getElementById('btn-tide').classList.add('active');
+        document.getElementById('btn-waves').classList.add('active');
+    </script>
+</body>
+</html>
