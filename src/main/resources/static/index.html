@@ -170,6 +170,21 @@
         let lastY = 0;
         let layerStates = { wind: true, tide: true, waves: true };
 
+        // Pan state - accumulate while request in flight
+        let panInFlight = false;
+        let accumulatedDeltaX = 0;
+        let accumulatedDeltaY = 0;
+
+        // Zoom state - accumulate while request in flight
+        let zoomInFlight = false;
+        let accumulatedZoomFactor = 1;
+        let zoomCenterX = 0;
+        let zoomCenterY = 0;
+
+        // Hover throttling
+        let lastHoverTime = 0;
+        const HOVER_THROTTLE_MS = 150;
+
         // Resize canvas to fill container
         function resizeCanvas() {
             const container = document.getElementById('canvas-container');
@@ -343,10 +358,8 @@
                 const response = await fetch(`${API_BASE}/render?width=${canvas.width}&height=${canvas.height}`);
                 if (!response.ok) throw new Error('Render failed');
                 const data = await response.json();
-
                 executeCommands(data.commands);
                 updateTimeDisplay(data.timestamp);
-
                 document.getElementById('loading').style.display = 'none';
             } catch (error) {
                 console.error('Render error:', error);
@@ -396,26 +409,16 @@
             }
         }
 
-        // Handle mouse events for pan
-        canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 0) {
-                isDragging = true;
-                lastX = e.clientX;
-                lastY = e.clientY;
-                canvas.style.cursor = 'grabbing';
-            }
-        });
+        // Pan - sends accumulated deltas, loops until caught up
+        async function sendPan() {
+            if (panInFlight) return;
+            panInFlight = true;
 
-        canvas.addEventListener('mousemove', async (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-
-            if (isDragging) {
-                const deltaX = e.clientX - lastX;
-                const deltaY = e.clientY - lastY;
-                lastX = e.clientX;
-                lastY = e.clientY;
+            while (accumulatedDeltaX !== 0 || accumulatedDeltaY !== 0) {
+                const deltaX = accumulatedDeltaX;
+                const deltaY = accumulatedDeltaY;
+                accumulatedDeltaX = 0;
+                accumulatedDeltaY = 0;
 
                 try {
                     const response = await fetch(`${API_BASE}/pan`, {
@@ -432,23 +435,87 @@
                     executeCommands(data.commands);
                 } catch (error) {
                     console.error('Pan error:', error);
+                    break;
                 }
-            } else {
-                // Update hover info
+            }
+
+            panInFlight = false;
+        }
+
+        // Zoom - sends accumulated factor, loops until caught up
+        async function sendZoom() {
+            if (zoomInFlight) return;
+            zoomInFlight = true;
+
+            while (accumulatedZoomFactor !== 1) {
+                const factor = accumulatedZoomFactor;
+                const cx = zoomCenterX;
+                const cy = zoomCenterY;
+                accumulatedZoomFactor = 1;
+
                 try {
-                    const response = await fetch(`${API_BASE}/hover`, {
+                    const response = await fetch(`${API_BASE}/zoom`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ x, y })
+                        body: JSON.stringify({
+                            factor: factor,
+                            centerX: cx,
+                            centerY: cy,
+                            width: canvas.width,
+                            height: canvas.height
+                        })
                     });
                     const data = await response.json();
+                    executeCommands(data.commands);
+                } catch (error) {
+                    console.error('Zoom error:', error);
+                    break;
+                }
+            }
+
+            zoomInFlight = false;
+        }
+
+        // Handle mouse events for pan
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                // Accumulate deltas
+                accumulatedDeltaX += e.clientX - lastX;
+                accumulatedDeltaY += e.clientY - lastY;
+                lastX = e.clientX;
+                lastY = e.clientY;
+
+                // Send immediately (will queue if in flight)
+                sendPan();
+            } else {
+                // Throttle hover info updates
+                const now = Date.now();
+                if (now - lastHoverTime < HOVER_THROTTLE_MS) return;
+                lastHoverTime = now;
+
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                fetch(`${API_BASE}/hover`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ x, y })
+                }).then(r => r.json()).then(data => {
                     document.getElementById('info-position').textContent = data.position || '-';
                     document.getElementById('info-wind').textContent = data.wind || '-';
                     document.getElementById('info-tide').textContent = data.tide || '-';
                     document.getElementById('info-waves').textContent = data.waves || '-';
-                } catch (error) {
-                    // Ignore hover errors
-                }
+                }).catch(() => {});
             }
         });
 
@@ -463,31 +530,18 @@
         });
 
         // Handle mouse wheel for zoom
-        canvas.addEventListener('wheel', async (e) => {
+        canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            zoomCenterX = e.clientX - rect.left;
+            zoomCenterY = e.clientY - rect.top;
 
+            // Accumulate zoom factor
             const factor = e.deltaY > 0 ? 1.2 : 1 / 1.2;
+            accumulatedZoomFactor *= factor;
 
-            try {
-                const response = await fetch(`${API_BASE}/zoom`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        factor: factor,
-                        centerX: x,
-                        centerY: y,
-                        width: canvas.width,
-                        height: canvas.height
-                    })
-                });
-                const data = await response.json();
-                executeCommands(data.commands);
-            } catch (error) {
-                console.error('Zoom error:', error);
-            }
+            // Send immediately (will queue if in flight)
+            sendZoom();
         });
 
         function showError(message) {
