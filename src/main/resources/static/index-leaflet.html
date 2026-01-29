@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JIM - Marine Route Optimization</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        #header {
+            background: #16213e;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #0f3460;
+            z-index: 1000;
+        }
+
+        #header h1 {
+            font-size: 1.5em;
+            color: #e94560;
+        }
+
+        #controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            background: #0f3460;
+            color: #eee;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #e94560;
+        }
+
+        .btn.active {
+            background: #e94560;
+        }
+
+        #time-display {
+            font-family: monospace;
+            font-size: 1.1em;
+            background: #0f3460;
+            padding: 8px 15px;
+            border-radius: 4px;
+        }
+
+        #main {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #c8e0f0;
+        }
+
+        #info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 300px;
+            font-family: monospace;
+            font-size: 0.9em;
+            z-index: 1000;
+        }
+
+        #info-panel .row {
+            margin: 5px 0;
+        }
+
+        #info-panel .label {
+            color: #888;
+            margin-right: 10px;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5em;
+            color: #e94560;
+            z-index: 1000;
+        }
+
+        .leaflet-container {
+            background: #c8e0f0;
+        }
+
+        .time-position-marker {
+            background: transparent;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="header">
+            <h1>JIM - Marine Route Optimization (Leaflet)</h1>
+            <div id="controls">
+                <button class="btn active" id="btn-charts" onclick="toggleLayer('charts')">Charts</button>
+                <button class="btn active" id="btn-shoreline" onclick="toggleLayer('shoreline')">Shoreline</button>
+                <button class="btn active" id="btn-agents" onclick="toggleLayer('agents')">Routes Fan</button>
+                <button class="btn active" id="btn-route" onclick="toggleLayer('route')">Route</button>
+                <button class="btn active" id="btn-lastroute" onclick="toggleLayer('lastroute')">LastRoute</button>
+                <button class="btn active" id="btn-obstructions" onclick="toggleLayer('obstructions')">Obstructions</button>
+                <button class="btn active" id="btn-wind" onclick="toggleLayer('wind')">Wind</button>
+                <button class="btn active" id="btn-tide" onclick="toggleLayer('tide')">Tide</button>
+                <span>|</span>
+                <button class="btn" onclick="adjustTime(-60)">-1h</button>
+                <button class="btn" onclick="adjustTime(-1)">-1m</button>
+                <span id="time-display">Loading...</span>
+                <button class="btn" onclick="adjustTime(1)">+1m</button>
+                <button class="btn" onclick="adjustTime(60)">+1h</button>
+            </div>
+        </div>
+        <div id="main">
+            <div id="map"></div>
+            <div id="info-panel">
+                <div class="row"><span class="label">Position:</span><span id="info-position">-</span></div>
+                <div class="row"><span class="label">Wind:</span><span id="info-wind">-</span></div>
+                <div class="row"><span class="label">Tide:</span><span id="info-tide">-</span></div>
+                <div class="row"><span class="label">Waves:</span><span id="info-waves">-</span></div>
+            </div>
+            <div id="loading">Loading map data...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        // Initialize map with no tile layer (custom rendering only)
+        const map = L.map('map', {
+            crs: L.CRS.EPSG3857,
+            zoomControl: true,
+            minZoom: 3,
+            maxZoom: 18
+        }).setView([50.5, -2.4], 8);
+
+        // GeoJSON layers
+        const layers = {
+            // Charts layer (land, coastline, shallow water, etc.) - rendered first (bottom)
+            charts: L.geoJSON(null, {
+                style: function(feature) {
+                    const props = feature.properties;
+                    return {
+                        color: props.color || '#000000',
+                        weight: props.type === 'coastline' ? 1 : 0,
+                        fillColor: props.color || '#F6C96E',
+                        fillOpacity: props.type === 'coastline' ? 0 : 0.8,
+                        opacity: 1
+                    };
+                }
+            }).addTo(map),
+
+            shoreline: L.geoJSON(null, {
+                style: {
+                    color: '#000000',
+                    weight: 1,
+                    opacity: 1
+                }
+            }).addTo(map),
+
+            depth: L.geoJSON(null, {
+                style: function(feature) {
+                    const depth = feature.properties.depth;
+                    return {
+                        color: getDepthColor(depth),
+                        weight: 1,
+                        opacity: 0.7
+                    };
+                }
+            }).addTo(map),
+
+            route: L.geoJSON(null, {
+                style: {
+                    color: '#000000',
+                    weight: 3,
+                    opacity: 0.9
+                },
+                pointToLayer: function(feature, latlng) {
+                    return L.circleMarker(latlng, {
+                        radius: 6,
+                        fillColor: '#000000',
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+                }
+            }).addTo(map),
+
+            waypoints: L.geoJSON(null, {
+                pointToLayer: function(feature, latlng) {
+                    return L.circleMarker(latlng, {
+                        radius: 8,
+                        fillColor: feature.properties.type === 'depart' ? '#00ff00' : '#ff0000',
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+                },
+                onEachFeature: function(feature, layer) {
+                    if (feature.properties.name) {
+                        layer.bindTooltip(feature.properties.name);
+                    }
+                }
+            }).addTo(map),
+
+            // LastRoute - previous computed route (dark gray)
+            lastroute: L.geoJSON(null, {
+                style: function(feature) {
+                    return {
+                        color: feature.properties.color || '#404040',
+                        weight: feature.properties.weight || 1,
+                        opacity: 0.8
+                    };
+                },
+                pointToLayer: function(feature, latlng) {
+                    // LastRoute waypoint markers - small crosshairs
+                    return L.circleMarker(latlng, {
+                        radius: 4,
+                        fillColor: '#404040',
+                        color: '#404040',
+                        weight: 1,
+                        opacity: 0.8,
+                        fillOpacity: 0.6
+                    });
+                }
+            }).addTo(map),
+
+            // Agents fan - all possible routes (black, keyAgent thicker)
+            agents: L.geoJSON(null, {
+                style: function(feature) {
+                    const isKey = feature.properties.type === 'keyAgent';
+                    return {
+                        color: '#000000',
+                        weight: isKey ? 3 : 1,
+                        opacity: isKey ? 0.9 : 0.4
+                    };
+                }
+            }).addTo(map),
+
+            // Obstructions - no-go zones (red)
+            obstructions: L.geoJSON(null, {
+                style: {
+                    color: '#FF0000',
+                    weight: 2,
+                    opacity: 0.9
+                }
+            }).addTo(map),
+
+            // Great circle reference line (dashed black)
+            greatcircle: L.geoJSON(null, {
+                style: {
+                    color: '#000000',
+                    weight: 1,
+                    opacity: 0.5,
+                    dashArray: '5, 5'
+                }
+            }).addTo(map),
+
+            // Time position markers
+            timeposition: L.geoJSON(null, {
+                pointToLayer: function(feature, latlng) {
+                    const color = feature.properties.color || '#000000';
+                    // Create a crosshair marker using divIcon
+                    return L.marker(latlng, {
+                        icon: L.divIcon({
+                            className: 'time-position-marker',
+                            html: `<svg width="24" height="24" viewBox="-12 -12 24 24">
+                                <line x1="-10" y1="0" x2="10" y2="0" stroke="${color}" stroke-width="3"/>
+                                <line x1="0" y1="-10" x2="0" y2="10" stroke="${color}" stroke-width="3"/>
+                            </svg>`,
+                            iconSize: [24, 24],
+                            iconAnchor: [12, 12]
+                        })
+                    });
+                }
+            }).addTo(map)
+        };
+
+        // Wind layer - custom canvas rendering
+        const windCanvas = document.createElement('canvas');
+        const windCtx = windCanvas.getContext('2d');
+        let windData = null;
+
+        const windLayer = L.Layer.extend({
+            onAdd: function(map) {
+                this._map = map;
+                this._canvas = windCanvas;
+                this._canvas.style.position = 'absolute';
+                this._canvas.style.pointerEvents = 'none';
+                this._topLeft = {x: 0, y: 0};  // Store offset for drawing
+                map.getPanes().overlayPane.appendChild(this._canvas);
+                map.on('moveend', this._update, this);
+                map.on('zoomend', this._update, this);
+                this._update();
+            },
+            onRemove: function(map) {
+                map.getPanes().overlayPane.removeChild(this._canvas);
+                map.off('moveend', this._update, this);
+                map.off('zoomend', this._update, this);
+            },
+            _update: function() {
+                const size = this._map.getSize();
+                this._canvas.width = size.x;
+                this._canvas.height = size.y;
+                this._topLeft = this._map.containerPointToLayerPoint([0, 0]);
+                L.DomUtil.setPosition(this._canvas, this._topLeft);
+                this._draw();
+            },
+            _draw: function() {
+                if (!windData) return;
+                const ctx = windCtx;
+                ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+
+                for (const point of windData) {
+                    const pos = this._map.latLngToContainerPoint([point.lat, point.lng]);
+                    // Offset drawing by topLeft to account for canvas transform
+                    const x = pos.x - this._topLeft.x;
+                    const y = pos.y - this._topLeft.y;
+                    drawWindArrow(ctx, x, y, point.u, point.v);
+                }
+            },
+            refresh: function() {
+                this._update();
+            }
+        });
+
+        const windLayerInstance = new windLayer();
+
+        // Tide layer - custom canvas rendering (above wind via DOM order)
+        const tideCanvas = document.createElement('canvas');
+        const tideCtx = tideCanvas.getContext('2d');
+        let tideData = null;
+
+        const tideLayer = L.Layer.extend({
+            onAdd: function(map) {
+                this._map = map;
+                this._canvas = tideCanvas;
+                this._canvas.style.position = 'absolute';
+                this._canvas.style.pointerEvents = 'none';
+                this._topLeft = {x: 0, y: 0};  // Store offset for drawing
+                map.getPanes().overlayPane.appendChild(this._canvas);
+                map.on('moveend', this._update, this);
+                map.on('zoomend', this._update, this);
+                this._update();
+            },
+            onRemove: function(map) {
+                map.getPanes().overlayPane.removeChild(this._canvas);
+                map.off('moveend', this._update, this);
+                map.off('zoomend', this._update, this);
+            },
+            _update: function() {
+                const size = this._map.getSize();
+                this._canvas.width = size.x;
+                this._canvas.height = size.y;
+                this._topLeft = this._map.containerPointToLayerPoint([0, 0]);
+                L.DomUtil.setPosition(this._canvas, this._topLeft);
+                this._draw();
+            },
+            _draw: function() {
+                if (!tideData) return;
+                const ctx = tideCtx;
+                ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+
+                for (const point of tideData) {
+                    const pos = this._map.latLngToContainerPoint([point.lat, point.lng]);
+                    // Offset drawing by topLeft to account for canvas transform
+                    const x = pos.x - this._topLeft.x;
+                    const y = pos.y - this._topLeft.y;
+                    drawTideArrow(ctx, x, y, point.u, point.v);
+                }
+            },
+            refresh: function() {
+                this._update();
+            }
+        });
+
+        const tideLayerInstance = new tideLayer();
+
+        // Layer visibility
+        const layerVisibility = {
+            charts: true,
+            shoreline: true,
+            wind: true,
+            tide: true,
+            route: true,
+            depth: true,
+            lastroute: true,
+            agents: true,
+            obstructions: true,
+            greatcircle: true,
+            timeposition: true
+        };
+
+        // Caching: track loaded bounds AND zoom level for static layers
+        const loadedCache = {
+            shoreline: null,  // {south, west, north, east, zoom}
+            charts: null
+        };
+
+        // Check if current viewport is within loaded bounds at same zoom level
+        function isWithinLoadedBounds(layerName) {
+            const cached = loadedCache[layerName];
+            if (!cached) return false;
+
+            const bounds = map.getBounds();
+            const currentZoom = map.getZoom();
+
+            // Invalidate cache if zoom changed significantly (more than 1 level)
+            if (Math.abs(currentZoom - cached.zoom) > 1) {
+                return false;
+            }
+
+            const margin = 0.1; // 10% margin before refetching
+
+            return bounds.getSouth() >= cached.south + margin &&
+                   bounds.getWest() >= cached.west + margin &&
+                   bounds.getNorth() <= cached.north - margin &&
+                   bounds.getEast() <= cached.east - margin;
+        }
+
+        // Expand loaded bounds to include current viewport (with buffer)
+        function expandLoadedBounds(layerName) {
+            const bounds = map.getBounds();
+            const currentZoom = map.getZoom();
+            const buffer = 0.5; // Load 50% extra around viewport
+            const latRange = bounds.getNorth() - bounds.getSouth();
+            const lngRange = bounds.getEast() - bounds.getWest();
+
+            const newBounds = {
+                south: bounds.getSouth() - latRange * buffer,
+                west: bounds.getWest() - lngRange * buffer,
+                north: bounds.getNorth() + latRange * buffer,
+                east: bounds.getEast() + lngRange * buffer,
+                zoom: currentZoom
+            };
+
+            const cached = loadedCache[layerName];
+            // Only expand if at similar zoom level, otherwise replace
+            if (cached && Math.abs(currentZoom - cached.zoom) <= 1) {
+                // Expand to union of old and new bounds
+                loadedCache[layerName] = {
+                    south: Math.min(cached.south, newBounds.south),
+                    west: Math.min(cached.west, newBounds.west),
+                    north: Math.max(cached.north, newBounds.north),
+                    east: Math.max(cached.east, newBounds.east),
+                    zoom: currentZoom
+                };
+            } else {
+                // Zoom changed significantly - clear and start fresh
+                loadedCache[layerName] = newBounds;
+            }
+
+            return newBounds;
+        }
+
+        // Clear cache and layers when zoom changes significantly
+        let lastZoom = null;
+        map.on('zoomend', function() {
+            const currentZoom = map.getZoom();
+            if (lastZoom !== null && Math.abs(currentZoom - lastZoom) > 1) {
+                // Clear layers and cache for fresh load at new zoom
+                layers.shoreline.clearLayers();
+                layers.charts.clearLayers();
+                loadedCache.shoreline = null;
+                loadedCache.charts = null;
+            }
+            lastZoom = currentZoom;
+        });
+
+        // Current time
+        let currentTime = Date.now();
+
+        // Depth color scale
+        function getDepthColor(depth) {
+            if (depth >= 0) return '#f0e68c';  // Land/shallow
+            if (depth > -50) return '#87ceeb';  // Very shallow
+            if (depth > -200) return '#4682b4'; // Shallow
+            if (depth > -1000) return '#4169e1'; // Medium
+            if (depth > -3000) return '#0000cd'; // Deep
+            return '#00008b'; // Very deep
+        }
+
+        // Draw wind arrow - matches original style: black line with dot at base
+        // u, v are in m/s (east and north components)
+        const WIND_ARROW_SIZE = 2;  // Scale factor matching original
+        function drawWindArrow(ctx, x, y, u, v) {
+            ctx.strokeStyle = '#000000';  // Black
+            ctx.fillStyle = '#000000';
+            ctx.lineWidth = 1;
+
+            // Draw line from base point in direction of wind
+            // Original: g.drawLine(p.x, p.y, p.x + v.x*arrowSize, p.y - v.y*arrowSize)
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + u * WIND_ARROW_SIZE, y - v * WIND_ARROW_SIZE);
+            ctx.stroke();
+
+            // Draw small dot at base (2x2 rect)
+            ctx.fillRect(x - 1, y - 1, 2, 2);
+        }
+
+        // Draw tide arrow - matches original style: blue line, thickness = speed * 5
+        // Constant length (normalized direction), thickness shows speed
+        const TIDE_ARROW_SIZE = 20;  // Constant length matching original
+        function drawTideArrow(ctx, x, y, u, v) {
+            const magnitude = Math.sqrt(u * u + v * v);
+            if (magnitude === 0) return;
+
+            ctx.strokeStyle = '#0000ff';  // Blue
+
+            if (magnitude < 0.2) {
+                // Weak current: thin line, scaled length
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + u * TIDE_ARROW_SIZE / 0.2, y - v * TIDE_ARROW_SIZE / 0.2);
+                ctx.stroke();
+            } else {
+                // Normal current: thickness proportional to speed, constant length
+                ctx.lineWidth = Math.min(magnitude * 5, 10);  // Cap at 10 for visibility
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                // Normalize to constant length
+                ctx.lineTo(x + (u / magnitude) * TIDE_ARROW_SIZE, y - (v / magnitude) * TIDE_ARROW_SIZE);
+                ctx.stroke();
+            }
+        }
+
+        // Load charts (CMap vector data) - with caching
+        async function loadCharts(force = false) {
+            if (!force && isWithinLoadedBounds('charts')) {
+                return; // Already have data for this area
+            }
+
+            const fetchBounds = expandLoadedBounds('charts');
+            const bbox = `${fetchBounds.south},${fetchBounds.west},${fetchBounds.north},${fetchBounds.east}`;
+
+            try {
+                const response = await fetch(`${API_BASE}/geojson/charts?bbox=${bbox}`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    // Don't clear - add to existing (Leaflet handles duplicates reasonably)
+                    // For cleaner behavior on force reload, clear first
+                    if (force) layers.charts.clearLayers();
+                    layers.charts.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading charts:', error);
+            }
+        }
+
+        // Load shoreline - with caching
+        async function loadShoreline(force = false) {
+            if (!force && isWithinLoadedBounds('shoreline')) {
+                return; // Already have data for this area
+            }
+
+            const fetchBounds = expandLoadedBounds('shoreline');
+            const bbox = `${fetchBounds.south},${fetchBounds.west},${fetchBounds.north},${fetchBounds.east}`;
+
+            try {
+                const response = await fetch(`${API_BASE}/geojson/shoreline?bbox=${bbox}`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    if (force) layers.shoreline.clearLayers();
+                    layers.shoreline.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading shoreline:', error);
+            }
+        }
+
+        // Load depth contours for current viewport
+        async function loadDepth() {
+            const bounds = map.getBounds();
+            const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+
+            try {
+                const response = await fetch(`${API_BASE}/geojson/depth?bbox=${bbox}`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    layers.depth.clearLayers();
+                    layers.depth.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading depth:', error);
+            }
+        }
+
+        // Load route
+        async function loadRoute() {
+            try {
+                const response = await fetch(`${API_BASE}/geojson/route`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    layers.route.clearLayers();
+                    layers.route.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading route:', error);
+            }
+        }
+
+        // Load waypoints
+        async function loadWaypoints() {
+            try {
+                const response = await fetch(`${API_BASE}/geojson/waypoints`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    layers.waypoints.clearLayers();
+                    layers.waypoints.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading waypoints:', error);
+            }
+        }
+
+        // Load wind data for current viewport
+        async function loadWind() {
+            const bounds = map.getBounds();
+            const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+
+            try {
+                const response = await fetch(`${API_BASE}/geojson/wind?bbox=${bbox}&time=${currentTime}`);
+                if (response.ok) {
+                    windData = await response.json();
+                    if (layerVisibility.wind) {
+                        windLayerInstance.refresh();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading wind:', error);
+            }
+        }
+
+        // Load tide data for current viewport
+        async function loadTide() {
+            const bounds = map.getBounds();
+            const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+
+            try {
+                const response = await fetch(`${API_BASE}/geojson/tide?bbox=${bbox}&time=${currentTime}`);
+                if (response.ok) {
+                    tideData = await response.json();
+                    if (layerVisibility.tide) {
+                        tideLayerInstance.refresh();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading tide:', error);
+            }
+        }
+
+        // Load last route
+        async function loadLastRoute() {
+            try {
+                const response = await fetch(`${API_BASE}/geojson/lastroute?time=${currentTime}`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    layers.lastroute.clearLayers();
+                    layers.lastroute.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading last route:', error);
+            }
+        }
+
+        // Load agents fan (all routes)
+        async function loadAgents() {
+            try {
+                const response = await fetch(`${API_BASE}/geojson/agents`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    layers.agents.clearLayers();
+                    layers.agents.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading agents:', error);
+            }
+        }
+
+        // Load obstructions
+        async function loadObstructions() {
+            try {
+                const response = await fetch(`${API_BASE}/geojson/obstructions`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    layers.obstructions.clearLayers();
+                    layers.obstructions.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading obstructions:', error);
+            }
+        }
+
+        // Load great circle reference line
+        async function loadGreatCircle() {
+            try {
+                const response = await fetch(`${API_BASE}/geojson/greatcircle`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    layers.greatcircle.clearLayers();
+                    layers.greatcircle.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading great circle:', error);
+            }
+        }
+
+        // Load time position indicator
+        async function loadTimePosition() {
+            try {
+                const response = await fetch(`${API_BASE}/geojson/timeposition?time=${currentTime}`);
+                if (response.ok) {
+                    const geojson = await response.json();
+                    layers.timeposition.clearLayers();
+                    layers.timeposition.addData(geojson);
+                }
+            } catch (error) {
+                console.error('Error loading time position:', error);
+            }
+        }
+
+        // Load all layers (force = true on initial load)
+        async function loadAllLayers(force = false) {
+            document.getElementById('loading').style.display = 'block';
+
+            await Promise.all([
+                loadCharts(force),
+                loadShoreline(force),
+                loadDepth(),
+                loadRoute(),
+                loadWaypoints(),
+                loadWind(),
+                loadTide(),
+                loadLastRoute(),
+                loadAgents(),
+                loadObstructions(),
+                loadGreatCircle(),
+                loadTimePosition()
+            ]);
+
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // Toggle layer visibility
+        function toggleLayer(layer) {
+            layerVisibility[layer] = !layerVisibility[layer];
+            const btn = document.getElementById(`btn-${layer}`);
+            if (btn) btn.classList.toggle('active', layerVisibility[layer]);
+
+            if (layer === 'charts') {
+                if (layerVisibility[layer]) map.addLayer(layers.charts);
+                else map.removeLayer(layers.charts);
+            } else if (layer === 'shoreline') {
+                if (layerVisibility[layer]) map.addLayer(layers.shoreline);
+                else map.removeLayer(layers.shoreline);
+            } else if (layer === 'route') {
+                if (layerVisibility[layer]) map.addLayer(layers.route);
+                else map.removeLayer(layers.route);
+            } else if (layer === 'wind') {
+                if (layerVisibility[layer]) map.addLayer(windLayerInstance);
+                else map.removeLayer(windLayerInstance);
+            } else if (layer === 'tide') {
+                if (layerVisibility[layer]) map.addLayer(tideLayerInstance);
+                else map.removeLayer(tideLayerInstance);
+            } else if (layer === 'depth') {
+                if (layerVisibility[layer]) map.addLayer(layers.depth);
+                else map.removeLayer(layers.depth);
+            } else if (layer === 'lastroute') {
+                if (layerVisibility[layer]) map.addLayer(layers.lastroute);
+                else map.removeLayer(layers.lastroute);
+            } else if (layer === 'agents') {
+                if (layerVisibility[layer]) map.addLayer(layers.agents);
+                else map.removeLayer(layers.agents);
+            } else if (layer === 'obstructions') {
+                if (layerVisibility[layer]) map.addLayer(layers.obstructions);
+                else map.removeLayer(layers.obstructions);
+            } else if (layer === 'greatcircle') {
+                if (layerVisibility[layer]) map.addLayer(layers.greatcircle);
+                else map.removeLayer(layers.greatcircle);
+            } else if (layer === 'timeposition') {
+                if (layerVisibility[layer]) map.addLayer(layers.timeposition);
+                else map.removeLayer(layers.timeposition);
+            }
+        }
+
+        // Adjust time
+        async function adjustTime(minutes) {
+            currentTime += minutes * 60 * 1000;
+            updateTimeDisplay();
+            // Reload time-dependent layers (wind, tide, time position markers)
+            await Promise.all([
+                loadWind(),
+                loadTide(),
+                loadLastRoute(),
+                loadTimePosition()
+            ]);
+        }
+
+        function updateTimeDisplay() {
+            const date = new Date(currentTime);
+            document.getElementById('time-display').textContent = date.toUTCString();
+        }
+
+        // Handle hover for info display
+        let lastHoverTime = 0;
+        const HOVER_THROTTLE_MS = 150;
+
+        map.on('mousemove', async function(e) {
+            const now = Date.now();
+            if (now - lastHoverTime < HOVER_THROTTLE_MS) return;
+            lastHoverTime = now;
+
+            try {
+                const response = await fetch(`${API_BASE}/geojson/hover`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lat: e.latlng.lat,
+                        lng: e.latlng.lng,
+                        time: currentTime
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('info-position').textContent = data.position || '-';
+                    document.getElementById('info-wind').textContent = data.wind || '-';
+                    document.getElementById('info-tide').textContent = data.tide || '-';
+                    document.getElementById('info-waves').textContent = data.waves || '-';
+                }
+            } catch (error) {
+                // Ignore hover errors
+            }
+        });
+
+        // Reload layers on viewport change
+        let loadTimeout = null;
+        map.on('moveend', function() {
+            clearTimeout(loadTimeout);
+            loadTimeout = setTimeout(() => {
+                loadCharts();
+                loadShoreline();
+                loadDepth();
+                loadWind();
+                loadTide();
+            }, 200);
+        });
+
+        // Initialize: get initial viewport and time from server
+        async function initialize() {
+            try {
+                const response = await fetch(`${API_BASE}/geojson/init`);
+                if (response.ok) {
+                    const data = await response.json();
+
+                    // Set initial view from server
+                    if (data.viewport) {
+                        const center = [
+                            (data.viewport.north + data.viewport.south) / 2,
+                            (data.viewport.east + data.viewport.west) / 2
+                        ];
+                        map.setView(center, 8);
+                    }
+
+                    // Set initial time
+                    if (data.time) {
+                        currentTime = data.time;
+                        updateTimeDisplay();
+                    }
+                }
+            } catch (error) {
+                console.error('Error initializing:', error);
+            }
+
+            // Add wind and tide layers
+            map.addLayer(windLayerInstance);
+            map.addLayer(tideLayerInstance);
+
+            // Load all layers (force initial load)
+            await loadAllLayers(true);
+        }
+
+        // Start
+        initialize();
+    </script>
+</body>
+</html>

@@ -52,8 +52,37 @@ public class WVS implements Renderable {
             new DataFile("wvs43.dat", 43000000)
     };
 
-    GridPoint GetGridPoint(int lat, int lon) {
-        return new GridPoint(lat, lon);
+    /**
+     * Get the GridPoint for a given latitude/longitude cell.
+     * Uses internal cache to avoid reloading data.
+     * @param lat Latitude in degrees (-90 to 90)
+     * @param lon Longitude in degrees (-180 to 180)
+     * @return GridPoint containing shoreline segments for this cell
+     */
+    public GridPoint GetGridPoint(int lat, int lon) {
+        // Ensure world array is initialized
+        if (world == null) {
+            world = new GridPoint[181][720];
+        }
+
+        // Bounds check
+        if (lat < -90 || lat > 90 || lon < -360 || lon > 360) {
+            return new GridPoint(); // Empty GridPoint
+        }
+
+        // Use cache if available
+        int latIdx = lat + 90;
+        int lonIdx = lon + worldOffset;
+
+        if (lonIdx < 0 || lonIdx >= 720) {
+            return new GridPoint(); // Empty GridPoint
+        }
+
+        if (world[latIdx][lonIdx] == null) {
+            world[latIdx][lonIdx] = new GridPoint(lat, lon);
+        }
+
+        return world[latIdx][lonIdx];
     }
 
 
