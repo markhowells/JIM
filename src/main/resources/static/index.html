@@ -33,15 +33,24 @@
             border-bottom: 1px solid #0f3460;
         }
 
-        #header h1 {
+        #title-area h1 {
             font-size: 1.5em;
             color: #e94560;
+            margin-bottom: 0;
+            line-height: 1.2;
+        }
+
+        #title-area .copyright {
+            font-size: 0.7em;
+            color: #888;
+            margin-top: 2px;
         }
 
         #controls {
             display: flex;
             gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -55,11 +64,15 @@
         }
 
         .btn:hover {
-            background: #e94560;
+            background: #1a4a7a;
         }
 
         .btn.active {
             background: #e94560;
+        }
+
+        .btn.active:hover {
+            background: #c73850;
         }
 
         #time-display {
@@ -126,13 +139,204 @@
             border-radius: 8px;
             display: none;
         }
+
+        /* Config Editor Panel */
+        #config-panel {
+            position: absolute;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100%;
+            background: #16213e;
+            border-left: 1px solid #0f3460;
+            overflow-y: auto;
+            transition: right 0.3s ease;
+            z-index: 1000;
+        }
+
+        #config-panel.open {
+            right: 0;
+        }
+
+        #config-panel h2 {
+            padding: 15px;
+            margin: 0;
+            background: #0f3460;
+            color: #e94560;
+            font-size: 1.2em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #config-panel .close-btn {
+            background: none;
+            border: none;
+            color: #eee;
+            font-size: 1.5em;
+            cursor: pointer;
+        }
+
+        .config-section {
+            padding: 15px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .config-section h3 {
+            color: #e94560;
+            font-size: 0.95em;
+            margin-bottom: 10px;
+        }
+
+        .config-row {
+            margin-bottom: 10px;
+        }
+
+        .config-row label {
+            display: block;
+            font-size: 0.85em;
+            color: #888;
+            margin-bottom: 3px;
+        }
+
+        .config-row input, .config-row select {
+            width: 100%;
+            padding: 8px;
+            background: #0f3460;
+            border: 1px solid #1a1a2e;
+            border-radius: 4px;
+            color: #eee;
+            font-size: 0.9em;
+        }
+
+        .config-row input:focus, .config-row select:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .config-row .coord-inputs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .config-row .coord-inputs input {
+            flex: 1;
+        }
+
+        .config-row .pick-btn {
+            padding: 8px 12px;
+            margin-top: 5px;
+            font-size: 0.85em;
+        }
+
+        .config-row .pick-btn.picking {
+            background: #e94560;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .weather-files {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .weather-file {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 0;
+            font-size: 0.85em;
+        }
+
+        .weather-file select {
+            width: 80px;
+        }
+
+        .weather-file .file-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .weather-file .remove-btn {
+            background: #e94560;
+            border: none;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+
+        .add-file-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .add-file-row select {
+            flex: 1;
+        }
+
+        .config-actions {
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .config-actions .btn {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .btn-primary {
+            background: #e94560;
+        }
+
+        .btn-secondary {
+            background: #0f3460;
+        }
+
+        .status-message {
+            padding: 10px 15px;
+            font-size: 0.85em;
+            display: none;
+        }
+
+        .status-message.success {
+            background: rgba(40, 167, 69, 0.3);
+            color: #28a745;
+            display: block;
+        }
+
+        .status-message.error {
+            background: rgba(233, 69, 96, 0.3);
+            color: #e94560;
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div id="container">
         <div id="header">
-            <h1>JIM - Marine Route Optimization</h1>
+            <div id="title-area">
+                <h1>JIM - Marine Route Optimization</h1>
+                <div class="copyright">(C) Copyright Jim Holmes</div>
+            </div>
             <div id="controls">
+                <button class="btn active" id="btn-charts" onclick="toggleLayer('charts')">Charts</button>
+                <button class="btn active" id="btn-shoreline" onclick="toggleLayer('shoreline')">Shore</button>
+                <button class="btn active" id="btn-route" onclick="toggleLayer('route')">Route</button>
+                <button class="btn active" id="btn-fan" onclick="toggleLayer('fan')">Fan</button>
+                <button class="btn active" id="btn-lastroute" onclick="toggleLayer('lastroute')">Last</button>
+                <button class="btn active" id="btn-obstructions" onclick="toggleLayer('obstructions')">Obstr</button>
+                <span>|</span>
                 <button class="btn" id="btn-wind" onclick="toggleLayer('wind')">Wind</button>
                 <button class="btn" id="btn-tide" onclick="toggleLayer('tide')">Tide</button>
                 <button class="btn" id="btn-waves" onclick="toggleLayer('waves')">Waves</button>
@@ -142,6 +346,8 @@
                 <span id="time-display">Loading...</span>
                 <button class="btn" onclick="adjustTime(1)">+1m</button>
                 <button class="btn" onclick="adjustTime(60)">+1h</button>
+                <span>|</span>
+                <button class="btn" id="btn-config" onclick="toggleConfigPanel()">Config</button>
             </div>
         </div>
         <div id="main">
@@ -156,6 +362,125 @@
                 <div id="loading">Loading map data...</div>
                 <div id="error"></div>
             </div>
+
+            <!-- Config Editor Panel -->
+            <div id="config-panel">
+                <h2>
+                    Route Configuration
+                    <button class="close-btn" onclick="toggleConfigPanel()">&times;</button>
+                </h2>
+
+                <div id="config-status" class="status-message"></div>
+
+                <!-- File Management -->
+                <div class="config-section">
+                    <h3>Config File</h3>
+                    <div class="config-row">
+                        <label>Load/Save Config</label>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="config-file-select" style="flex: 1;">
+                                <option value="">-- Select Config --</option>
+                            </select>
+                            <button class="btn btn-secondary" onclick="loadSelectedConfig()">Load</button>
+                        </div>
+                    </div>
+                    <div class="config-row">
+                        <label>Save As</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="config-save-name" placeholder="route.yaml" style="flex: 1;">
+                            <button class="btn btn-secondary" onclick="saveConfig()">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Boat/Polar Selection -->
+                <div class="config-section">
+                    <h3>Boat</h3>
+                    <div class="config-row">
+                        <label>Polar</label>
+                        <select id="config-polar">
+                            <option value="">-- Select Polar --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Departure -->
+                <div class="config-section">
+                    <h3>Departure</h3>
+                    <div class="config-row">
+                        <label>Position (click map or enter coordinates)</label>
+                        <div class="coord-inputs">
+                            <input type="text" id="depart-lat" placeholder="50*34'39&quot;N">
+                            <input type="text" id="depart-lon" placeholder="002*24'26&quot;W">
+                        </div>
+                        <button class="btn pick-btn" id="pick-depart-btn" onclick="startPicking('depart')">
+                            Pick on Map
+                        </button>
+                    </div>
+                    <div class="config-row">
+                        <label>Departure Time (UTC)</label>
+                        <input type="datetime-local" id="depart-time">
+                    </div>
+                </div>
+
+                <!-- Destination -->
+                <div class="config-section">
+                    <h3>Destination</h3>
+                    <div class="config-row">
+                        <label>Position (click map or enter coordinates)</label>
+                        <div class="coord-inputs">
+                            <input type="text" id="dest-lat" placeholder="49*40'24&quot;N">
+                            <input type="text" id="dest-lon" placeholder="001*39'24&quot;W">
+                        </div>
+                        <button class="btn pick-btn" id="pick-dest-btn" onclick="startPicking('dest')">
+                            Pick on Map
+                        </button>
+                    </div>
+                    <div class="config-row">
+                        <label>Arrival Radius (nm)</label>
+                        <input type="number" id="dest-radius" value="0.2" step="0.1" min="0.1">
+                    </div>
+                </div>
+
+                <!-- Expand Settings -->
+                <div class="config-section">
+                    <h3>Expansion</h3>
+                    <div class="config-row">
+                        <label>Distance (nm)</label>
+                        <input type="number" id="expand-distance" value="20" step="1" min="1">
+                    </div>
+                    <div class="config-row">
+                        <label>Angular Bins</label>
+                        <input type="number" id="expand-bins" value="360" step="10" min="10">
+                    </div>
+                </div>
+
+                <!-- Weather Files -->
+                <div class="config-section">
+                    <h3>Weather Data</h3>
+                    <div class="weather-files" id="weather-files-list">
+                        <!-- Populated dynamically -->
+                    </div>
+                    <div class="add-file-row">
+                        <select id="weather-type-select">
+                            <option value="Wind">Wind</option>
+                            <option value="Tide">Tide</option>
+                            <option value="Waves">Waves</option>
+                            <option value="Current">Current</option>
+                        </select>
+                        <select id="grib-file-select" style="flex: 2;">
+                            <option value="">-- Select File --</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="addWeatherFile()">Add</button>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="config-actions">
+                    <button class="btn btn-primary" onclick="applyConfig()">Apply & Calculate Route</button>
+                    <button class="btn btn-secondary" onclick="loadCurrentConfig()">Reset to Current</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -163,12 +488,22 @@
         const canvas = document.getElementById('mapCanvas');
         const ctx = canvas.getContext('2d');
         const API_BASE = '/api/map';
+        const CONFIG_API = '/api/config';
 
         // State
         let isDragging = false;
         let lastX = 0;
         let lastY = 0;
-        let layerStates = { wind: true, tide: true, waves: true };
+        let layerStates = {
+            charts: true, shoreline: true, route: true, fan: true,
+            lastroute: true, obstructions: true,
+            wind: true, tide: true, waves: true
+        };
+
+        // Config editor state
+        let configPanelOpen = false;
+        let pickingMode = null; // 'depart' or 'dest'
+        let weatherFiles = []; // Current weather file list
 
         // Pan state - accumulate while request in flight
         let panInFlight = false;
@@ -185,6 +520,12 @@
         let lastHoverTime = 0;
         const HOVER_THROTTLE_MS = 150;
 
+        // Pan throttling and optimistic rendering
+        let panScheduled = false;
+        let optimisticOffsetX = 0;
+        let optimisticOffsetY = 0;
+
+
         // Resize canvas to fill container
         function resizeCanvas() {
             const container = document.getElementById('canvas-container');
@@ -193,161 +534,162 @@
             render();
         }
 
-        // Execute drawing commands on canvas
+        // Execute drawing commands directly on canvas (simple approach)
         function executeCommands(commands) {
             for (const cmd of commands) {
-                executeCommand(cmd);
+                executeCommand(ctx, cmd);
             }
         }
 
-        function executeCommand(cmd) {
+        function executeCommand(targetCtx, cmd) {
             const p = cmd.params || {};
 
             switch (cmd.type) {
                 case 'CLEAR':
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(0, 0, p.width || canvas.width, p.height || canvas.height);
+                    // Fill the target canvas with white
+                    targetCtx.fillStyle = 'white';
+                    targetCtx.fillRect(0, 0, p.width || canvas.width, p.height || canvas.height);
                     break;
 
                 case 'SET_COLOR':
                     const alpha = p.a !== undefined ? p.a / 255 : 1;
-                    ctx.fillStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
-                    ctx.strokeStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
+                    targetCtx.fillStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
+                    targetCtx.strokeStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
                     break;
 
                 case 'SET_STROKE_WIDTH':
-                    ctx.lineWidth = p.width;
+                    targetCtx.lineWidth = p.width;
                     if (p.dashPattern && p.dashPattern.length > 0) {
-                        ctx.setLineDash(p.dashPattern);
+                        targetCtx.setLineDash(p.dashPattern);
                     } else {
-                        ctx.setLineDash([]);
+                        targetCtx.setLineDash([]);
                     }
                     break;
 
                 case 'SET_FONT':
                     const style = p.style === 1 ? 'bold ' : (p.style === 2 ? 'italic ' : '');
-                    ctx.font = `${style}${p.size}px ${p.name}`;
+                    targetCtx.font = `${style}${p.size}px ${p.name}`;
                     break;
 
                 case 'DRAW_LINE':
-                    ctx.beginPath();
-                    ctx.moveTo(p.x1, p.y1);
-                    ctx.lineTo(p.x2, p.y2);
-                    ctx.stroke();
+                    targetCtx.beginPath();
+                    targetCtx.moveTo(p.x1, p.y1);
+                    targetCtx.lineTo(p.x2, p.y2);
+                    targetCtx.stroke();
                     break;
 
                 case 'DRAW_RECT':
-                    ctx.strokeRect(p.x, p.y, p.width, p.height);
+                    targetCtx.strokeRect(p.x, p.y, p.width, p.height);
                     break;
 
                 case 'FILL_RECT':
-                    ctx.fillRect(p.x, p.y, p.width, p.height);
+                    targetCtx.fillRect(p.x, p.y, p.width, p.height);
                     break;
 
                 case 'DRAW_OVAL':
-                    ctx.beginPath();
-                    ctx.ellipse(p.x + p.width/2, p.y + p.height/2, p.width/2, p.height/2, 0, 0, 2 * Math.PI);
-                    ctx.stroke();
+                    targetCtx.beginPath();
+                    targetCtx.ellipse(p.x + p.width/2, p.y + p.height/2, p.width/2, p.height/2, 0, 0, 2 * Math.PI);
+                    targetCtx.stroke();
                     break;
 
                 case 'FILL_OVAL':
-                    ctx.beginPath();
-                    ctx.ellipse(p.x + p.width/2, p.y + p.height/2, p.width/2, p.height/2, 0, 0, 2 * Math.PI);
-                    ctx.fill();
+                    targetCtx.beginPath();
+                    targetCtx.ellipse(p.x + p.width/2, p.y + p.height/2, p.width/2, p.height/2, 0, 0, 2 * Math.PI);
+                    targetCtx.fill();
                     break;
 
                 case 'DRAW_ARC':
-                    ctx.beginPath();
+                    targetCtx.beginPath();
                     const startRad = -p.startAngle * Math.PI / 180;
                     const endRad = -(p.startAngle + p.arcAngle) * Math.PI / 180;
-                    ctx.arc(p.x + p.width/2, p.y + p.height/2, p.width/2, startRad, endRad, p.arcAngle > 0);
-                    ctx.stroke();
+                    targetCtx.arc(p.x + p.width/2, p.y + p.height/2, p.width/2, startRad, endRad, p.arcAngle > 0);
+                    targetCtx.stroke();
                     break;
 
                 case 'FILL_ARC':
-                    ctx.beginPath();
+                    targetCtx.beginPath();
                     const startRadF = -p.startAngle * Math.PI / 180;
                     const endRadF = -(p.startAngle + p.arcAngle) * Math.PI / 180;
-                    ctx.moveTo(p.x + p.width/2, p.y + p.height/2);
-                    ctx.arc(p.x + p.width/2, p.y + p.height/2, p.width/2, startRadF, endRadF, p.arcAngle > 0);
-                    ctx.closePath();
-                    ctx.fill();
+                    targetCtx.moveTo(p.x + p.width/2, p.y + p.height/2);
+                    targetCtx.arc(p.x + p.width/2, p.y + p.height/2, p.width/2, startRadF, endRadF, p.arcAngle > 0);
+                    targetCtx.closePath();
+                    targetCtx.fill();
                     break;
 
                 case 'DRAW_POLYGON':
                     if (p.xPoints && p.xPoints.length > 0) {
-                        ctx.beginPath();
-                        ctx.moveTo(p.xPoints[0], p.yPoints[0]);
+                        targetCtx.beginPath();
+                        targetCtx.moveTo(p.xPoints[0], p.yPoints[0]);
                         for (let i = 1; i < p.xPoints.length; i++) {
-                            ctx.lineTo(p.xPoints[i], p.yPoints[i]);
+                            targetCtx.lineTo(p.xPoints[i], p.yPoints[i]);
                         }
-                        ctx.closePath();
-                        ctx.stroke();
+                        targetCtx.closePath();
+                        targetCtx.stroke();
                     }
                     break;
 
                 case 'FILL_POLYGON':
                     if (p.xPoints && p.xPoints.length > 0) {
-                        ctx.beginPath();
-                        ctx.moveTo(p.xPoints[0], p.yPoints[0]);
+                        targetCtx.beginPath();
+                        targetCtx.moveTo(p.xPoints[0], p.yPoints[0]);
                         for (let i = 1; i < p.xPoints.length; i++) {
-                            ctx.lineTo(p.xPoints[i], p.yPoints[i]);
+                            targetCtx.lineTo(p.xPoints[i], p.yPoints[i]);
                         }
-                        ctx.closePath();
-                        ctx.fill();
+                        targetCtx.closePath();
+                        targetCtx.fill();
                     }
                     break;
 
                 case 'DRAW_POLYLINE':
                     if (p.xPoints && p.xPoints.length > 0) {
-                        ctx.beginPath();
-                        ctx.moveTo(p.xPoints[0], p.yPoints[0]);
+                        targetCtx.beginPath();
+                        targetCtx.moveTo(p.xPoints[0], p.yPoints[0]);
                         for (let i = 1; i < p.xPoints.length; i++) {
-                            ctx.lineTo(p.xPoints[i], p.yPoints[i]);
+                            targetCtx.lineTo(p.xPoints[i], p.yPoints[i]);
                         }
-                        ctx.stroke();
+                        targetCtx.stroke();
                     }
                     break;
 
                 case 'DRAW_STRING':
-                    ctx.fillText(p.text, p.x, p.y);
+                    targetCtx.fillText(p.text, p.x, p.y);
                     break;
 
                 case 'TRANSLATE':
-                    ctx.translate(p.tx, p.ty);
+                    targetCtx.translate(p.tx, p.ty);
                     break;
 
                 case 'ROTATE':
                     if (p.x !== undefined) {
-                        ctx.translate(p.x, p.y);
-                        ctx.rotate(p.theta);
-                        ctx.translate(-p.x, -p.y);
+                        targetCtx.translate(p.x, p.y);
+                        targetCtx.rotate(p.theta);
+                        targetCtx.translate(-p.x, -p.y);
                     } else {
-                        ctx.rotate(p.theta);
+                        targetCtx.rotate(p.theta);
                     }
                     break;
 
                 case 'SCALE':
-                    ctx.scale(p.sx, p.sy);
+                    targetCtx.scale(p.sx, p.sy);
                     break;
 
                 case 'SAVE':
-                    ctx.save();
+                    targetCtx.save();
                     break;
 
                 case 'RESTORE':
-                    ctx.restore();
+                    targetCtx.restore();
                     break;
 
                 case 'SET_CLIP':
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(p.x, p.y, p.width, p.height);
-                    ctx.clip();
+                    targetCtx.save();
+                    targetCtx.beginPath();
+                    targetCtx.rect(p.x, p.y, p.width, p.height);
+                    targetCtx.clip();
                     break;
 
                 case 'CLEAR_CLIP':
-                    ctx.restore();
+                    targetCtx.restore();
                     break;
             }
         }
@@ -433,8 +775,25 @@
                     });
                     const data = await response.json();
                     executeCommands(data.commands);
+                    // Only subtract the delta that was actually sent (not the entire offset)
+                    // This preserves any additional movement that happened while request was in flight
+                    optimisticOffsetX -= deltaX;
+                    optimisticOffsetY -= deltaY;
+                    if (optimisticOffsetX === 0 && optimisticOffsetY === 0) {
+                        canvas.style.transform = '';
+                    } else {
+                        canvas.style.transform = `translate(${optimisticOffsetX}px, ${optimisticOffsetY}px)`;
+                    }
                 } catch (error) {
                     console.error('Pan error:', error);
+                    // On error, still adjust for what we tried to send
+                    optimisticOffsetX -= deltaX;
+                    optimisticOffsetY -= deltaY;
+                    if (optimisticOffsetX === 0 && optimisticOffsetY === 0) {
+                        canvas.style.transform = '';
+                    } else {
+                        canvas.style.transform = `translate(${optimisticOffsetX}px, ${optimisticOffsetY}px)`;
+                    }
                     break;
                 }
             }
@@ -477,8 +836,17 @@
         }
 
         // Handle mouse events for pan
-        canvas.addEventListener('mousedown', (e) => {
+        canvas.addEventListener('mousedown', async (e) => {
             if (e.button === 0) {
+                // Check if in picking mode
+                if (pickingMode) {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const handled = await handleMapClick(x, y);
+                    if (handled) return;
+                }
+
                 isDragging = true;
                 lastX = e.clientX;
                 lastY = e.clientY;
@@ -488,14 +856,27 @@
 
         canvas.addEventListener('mousemove', (e) => {
             if (isDragging) {
-                // Accumulate deltas
-                accumulatedDeltaX += e.clientX - lastX;
-                accumulatedDeltaY += e.clientY - lastY;
+                // Calculate deltas
+                const dx = e.clientX - lastX;
+                const dy = e.clientY - lastY;
+                accumulatedDeltaX += dx;
+                accumulatedDeltaY += dy;
+                optimisticOffsetX += dx;
+                optimisticOffsetY += dy;
                 lastX = e.clientX;
                 lastY = e.clientY;
 
-                // Send immediately (will queue if in flight)
-                sendPan();
+                // Optimistic visual feedback (instant) - shift canvas visually
+                canvas.style.transform = `translate(${optimisticOffsetX}px, ${optimisticOffsetY}px)`;
+
+                // Request server update via requestAnimationFrame (allows more frequent updates)
+                if (!panScheduled) {
+                    panScheduled = true;
+                    requestAnimationFrame(() => {
+                        panScheduled = false;
+                        sendPan();
+                    });
+                }
             } else {
                 // Throttle hover info updates
                 const now = Date.now();
@@ -522,11 +903,14 @@
         canvas.addEventListener('mouseup', () => {
             isDragging = false;
             canvas.style.cursor = 'crosshair';
+            // Don't reset transform here - let server response reset it
+            // This prevents snap-back before final render arrives
         });
 
         canvas.addEventListener('mouseleave', () => {
             isDragging = false;
             canvas.style.cursor = 'crosshair';
+            // Don't reset transform here - let server response reset it
         });
 
         // Handle mouse wheel for zoom
@@ -555,10 +939,320 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Set initial layer button states
-        document.getElementById('btn-wind').classList.add('active');
-        document.getElementById('btn-tide').classList.add('active');
-        document.getElementById('btn-waves').classList.add('active');
+        // Set initial layer button states (already set in HTML with 'active' class)
+
+        // ========== Config Editor Functions ==========
+
+        function toggleConfigPanel() {
+            const panel = document.getElementById('config-panel');
+            configPanelOpen = !configPanelOpen;
+            panel.classList.toggle('open', configPanelOpen);
+            document.getElementById('btn-config').classList.toggle('active', configPanelOpen);
+
+            if (configPanelOpen) {
+                loadConfigLists();
+                loadCurrentConfig();
+            }
+        }
+
+        async function loadConfigLists() {
+            // Load config file list
+            try {
+                const res = await fetch(`${CONFIG_API}/list`);
+                const data = await res.json();
+                const select = document.getElementById('config-file-select');
+                select.innerHTML = '<option value="">-- Select Config --</option>';
+                data.items.forEach(file => {
+                    const opt = document.createElement('option');
+                    opt.value = file;
+                    opt.textContent = file;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Error loading config list:', e);
+            }
+
+            // Load GRIB file list
+            try {
+                const res = await fetch(`${CONFIG_API}/grib-files`);
+                const data = await res.json();
+                const select = document.getElementById('grib-file-select');
+                select.innerHTML = '<option value="">-- Select File --</option>';
+                data.items.forEach(file => {
+                    const opt = document.createElement('option');
+                    opt.value = file;
+                    opt.textContent = file;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Error loading GRIB list:', e);
+            }
+
+            // Load polar list
+            try {
+                const res = await fetch(`${CONFIG_API}/polars`);
+                const data = await res.json();
+                const select = document.getElementById('config-polar');
+                select.innerHTML = '<option value="">-- Select Polar --</option>';
+                data.items.forEach(polar => {
+                    const opt = document.createElement('option');
+                    opt.value = polar;
+                    opt.textContent = polar;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Error loading polars:', e);
+            }
+        }
+
+        async function loadCurrentConfig() {
+            try {
+                const res = await fetch(`${CONFIG_API}/current`);
+                const config = await res.json();
+                populateConfigForm(config);
+            } catch (e) {
+                console.error('Error loading current config:', e);
+            }
+        }
+
+        async function loadSelectedConfig() {
+            const select = document.getElementById('config-file-select');
+            if (!select.value) return;
+
+            try {
+                const res = await fetch(`${CONFIG_API}/${encodeURIComponent(select.value)}`);
+                if (res.ok) {
+                    const config = await res.json();
+                    populateConfigForm(config);
+                    showStatus('Config loaded', 'success');
+                } else {
+                    showStatus('Failed to load config', 'error');
+                }
+            } catch (e) {
+                showStatus('Error loading config: ' + e.message, 'error');
+            }
+        }
+
+        function populateConfigForm(config) {
+            // Polar
+            if (config.polar) {
+                document.getElementById('config-polar').value = config.polar;
+            }
+
+            // Departure
+            if (config.departure) {
+                document.getElementById('depart-lat').value = config.departure.latDMS || '';
+                document.getElementById('depart-lon').value = config.departure.lonDMS || '';
+                if (config.departure.time) {
+                    // Convert "2025/11/25 15:00 UTC" to datetime-local format
+                    const dt = parseDepartureTime(config.departure.time);
+                    if (dt) {
+                        document.getElementById('depart-time').value = dt;
+                    }
+                }
+            }
+
+            // Destination
+            if (config.destination) {
+                document.getElementById('dest-lat').value = config.destination.latDMS || '';
+                document.getElementById('dest-lon').value = config.destination.lonDMS || '';
+                document.getElementById('dest-radius').value = config.destination.radiusNm || 0.2;
+            }
+
+            // Expand
+            if (config.expand) {
+                document.getElementById('expand-distance').value = config.expand.distanceNm || 20;
+                document.getElementById('expand-bins').value = config.expand.bins || 360;
+            }
+
+            // Weather files
+            weatherFiles = config.weatherFiles || [];
+            renderWeatherFiles();
+        }
+
+        function parseDepartureTime(timeStr) {
+            // Parse "2025/11/25 15:00 UTC" to "2025-11-25T15:00"
+            if (!timeStr) return null;
+            const match = timeStr.match(/(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
+            if (match) {
+                return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}`;
+            }
+            return null;
+        }
+
+        function formatDepartureTime(dt) {
+            // Format datetime-local to "2025/11/25 15:00 UTC"
+            if (!dt) return null;
+            const d = new Date(dt);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const h = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            return `${y}/${m}/${day} ${h}:${min} UTC`;
+        }
+
+        function renderWeatherFiles() {
+            const container = document.getElementById('weather-files-list');
+            container.innerHTML = '';
+
+            weatherFiles.forEach((wf, index) => {
+                const div = document.createElement('div');
+                div.className = 'weather-file';
+                div.innerHTML = `
+                    <span style="color: #e94560; font-weight: bold;">${wf.type}</span>
+                    <span class="file-name">${wf.file}</span>
+                    <button class="remove-btn" onclick="removeWeatherFile(${index})">&times;</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addWeatherFile() {
+            const type = document.getElementById('weather-type-select').value;
+            const file = document.getElementById('grib-file-select').value;
+            if (!file) return;
+
+            weatherFiles.push({ type, file });
+            renderWeatherFiles();
+        }
+
+        function removeWeatherFile(index) {
+            weatherFiles.splice(index, 1);
+            renderWeatherFiles();
+        }
+
+        function getConfigFromForm() {
+            const config = {
+                polar: document.getElementById('config-polar').value || null,
+                departure: {
+                    latDMS: document.getElementById('depart-lat').value || null,
+                    lonDMS: document.getElementById('depart-lon').value || null,
+                    time: formatDepartureTime(document.getElementById('depart-time').value)
+                },
+                destination: {
+                    latDMS: document.getElementById('dest-lat').value || null,
+                    lonDMS: document.getElementById('dest-lon').value || null,
+                    radiusNm: parseFloat(document.getElementById('dest-radius').value) || 0.2,
+                    bins: 360,
+                    binSizeNm: 1.0,
+                    stepHours: 0.1
+                },
+                expand: {
+                    distanceNm: parseFloat(document.getElementById('expand-distance').value) || 20,
+                    bins: parseInt(document.getElementById('expand-bins').value) || 360,
+                    binSizeNm: 1.0,
+                    stepHours: 0.1
+                },
+                weatherFiles: weatherFiles,
+                obstructions: []
+            };
+            return config;
+        }
+
+        async function saveConfig() {
+            const name = document.getElementById('config-save-name').value;
+            if (!name) {
+                showStatus('Please enter a filename', 'error');
+                return;
+            }
+
+            const config = getConfigFromForm();
+
+            try {
+                const res = await fetch(`${CONFIG_API}/${encodeURIComponent(name)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showStatus('Config saved!', 'success');
+                    loadConfigLists(); // Refresh file list
+                } else {
+                    showStatus('Save failed: ' + data.message, 'error');
+                }
+            } catch (e) {
+                showStatus('Error saving: ' + e.message, 'error');
+            }
+        }
+
+        async function applyConfig() {
+            const config = getConfigFromForm();
+
+            showStatus('Applying config and calculating route...', 'success');
+
+            try {
+                const res = await fetch(`${CONFIG_API}/apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showStatus('Route calculation started!', 'success');
+                    // Re-render the map
+                    setTimeout(() => render(), 500);
+                } else {
+                    showStatus('Apply failed: ' + data.message, 'error');
+                }
+            } catch (e) {
+                showStatus('Error applying: ' + e.message, 'error');
+            }
+        }
+
+        function showStatus(message, type) {
+            const el = document.getElementById('config-status');
+            el.textContent = message;
+            el.className = 'status-message ' + type;
+            if (type === 'success') {
+                setTimeout(() => {
+                    el.className = 'status-message';
+                }, 3000);
+            }
+        }
+
+        // ========== Click-to-Select for Map ==========
+
+        function startPicking(target) {
+            pickingMode = target;
+            document.getElementById('pick-depart-btn').classList.toggle('picking', target === 'depart');
+            document.getElementById('pick-dest-btn').classList.toggle('picking', target === 'dest');
+            canvas.style.cursor = 'crosshair';
+
+            if (target) {
+                showStatus(`Click on the map to set ${target === 'depart' ? 'departure' : 'destination'} point`, 'success');
+            }
+        }
+
+        async function handleMapClick(x, y) {
+            if (!pickingMode) return false;
+
+            try {
+                const res = await fetch(`${CONFIG_API}/screen-to-coords`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ x, y })
+                });
+                const coords = await res.json();
+
+                if (pickingMode === 'depart') {
+                    document.getElementById('depart-lat').value = coords.latDMS;
+                    document.getElementById('depart-lon').value = coords.lonDMS;
+                } else if (pickingMode === 'dest') {
+                    document.getElementById('dest-lat').value = coords.latDMS;
+                    document.getElementById('dest-lon').value = coords.lonDMS;
+                }
+
+                showStatus(`${pickingMode === 'depart' ? 'Departure' : 'Destination'} set: ${coords.latDMS} ${coords.lonDMS}`, 'success');
+            } catch (e) {
+                showStatus('Error getting coordinates', 'error');
+            }
+
+            // Exit picking mode
+            startPicking(null);
+            return true;
+        }
     </script>
 </body>
 </html>

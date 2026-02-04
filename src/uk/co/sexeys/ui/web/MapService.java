@@ -54,6 +54,12 @@ public class MapService {
     private boolean showWind = true;
     private boolean showWater = true;
     private boolean showWaves = true;
+    private boolean showCharts = true;
+    private boolean showShoreline = true;
+    private boolean showRoute = true;
+    private boolean showFan = true;
+    private boolean showLastRoute = true;
+    private boolean showObstructions = true;
 
     private boolean initialized = false;
 
@@ -107,9 +113,9 @@ public class MapService {
             // Initialize data layers
             wvs = new WVS(Main.WVSResolution);
             cMap = new CMap(0);
-            idx = new IDX(Main.root + File.separator + "charts/tides/HARMONIC");
-            harmonics = new Harmonics(Main.root + File.separator + "charts/tides/HARMONIC");
-            depth = new Depth(Main.root + File.separator + "charts/Bathymetry/GEBCO_2020.dat", 4);
+            idx = new IDX(Main.root + File.separator + "Charts/Tides/HARMONIC");
+            harmonics = new Harmonics(Main.root + File.separator + "Charts/Tides/HARMONIC");
+            depth = new Depth(Main.root + File.separator + "Charts/Bathymetry/GEBCO_2020.dat", 4);
 
             try {
                 idx.read();
@@ -119,6 +125,14 @@ public class MapService {
 
             // Compute initial route
             computeRoute();
+
+            // Center viewport on departure point, keeping the original viewport range
+            if (boat.waypoints.length > 0 && boat.waypoints[0] instanceof Depart) {
+                Depart depart = (Depart) boat.waypoints[0];
+                centerOnPosition(depart.position);
+                logger.info("Centered viewport on departure: ({}, {})",
+                    Math.toDegrees(depart.position.x), Math.toDegrees(depart.position.y));
+            }
 
             // Load last route if available
             lastRoute = new LastRoute();
@@ -355,14 +369,27 @@ public class MapService {
 
         // Update screen size if changed
         if (screen.width != width || screen.height != height) {
+            // Preserve the center in Mercator space when resizing
+            float lonRange = screen.lon2 - screen.lon1;
+            double y1 = latToMercatorY(screen.lat1);
+            double y2 = latToMercatorY(screen.lat2);
+            double yCenter = (y1 + y2) / 2;  // Center in Mercator space
+
             screen.width = width;
             screen.height = height;
             screen.x2 = new int[]{width};
             screen.y2 = new int[]{height};
-            // Recalculate lat2 to maintain aspect ratio
-            float lonRange = screen.lon2 - screen.lon1;
-            float latRange = lonRange * height / width;
-            screen.lat2 = screen.lat1 - latRange;
+
+            // Calculate new Mercator y range based on aspect ratio
+            // Mercator y is in radians, lonRange is in degrees - need conversion
+            double yRange = Math.toRadians(lonRange) * height / width;
+            double newY1 = yCenter + yRange / 2;
+            double newY2 = yCenter - yRange / 2;
+
+            // Convert back to geographic latitudes
+            screen.lat1 = (float) mercatorYToLat(newY1);
+            screen.lat2 = (float) mercatorYToLat(newY2);
+
             screen.computeParameters(0);
             projection = new MercatorProjection(screen);
             cMap.update(screen);
@@ -372,44 +399,83 @@ public class MapService {
         renderer.clear();
 
         long time = UTC.getTimeInMillis();
+        int cmdCount;
 
-        // Render layers
+        // Render layers (with command counting for diagnostics)
+        // Layer tags for client-side caching: static, dynamic, route, ui
+
+        // Static layers (charts, shoreline) - rarely change
+        renderer.setCurrentLayer("static");
         if (depth != null && cMap.scaleLevel < 0) {
+            cmdCount = renderer.getCommands().size();
             depth.render(renderer, projection, time);
+            logger.debug("Depth: {} commands", renderer.getCommands().size() - cmdCount);
         }
 
+        if (showCharts) {
+            cmdCount = renderer.getCommands().size();
+            cMap.render(renderer, projection, time);
+            logger.debug("Charts: {} commands", renderer.getCommands().size() - cmdCount);
+        }
+
+        if (showShoreline) {
+            cmdCount = renderer.getCommands().size();
+            wvs.render(renderer, projection, time);
+            logger.debug("Shoreline: {} commands", renderer.getCommands().size() - cmdCount);
+        }
+
+        // Dynamic layers (weather) - change with time
+        renderer.setCurrentLayer("dynamic");
         if (showWaves && waves != null) {
+            cmdCount = renderer.getCommands().size();
             waves.render(renderer, projection, time);
+            logger.debug("Waves: {} commands", renderer.getCommands().size() - cmdCount);
         }
-
-        cMap.render(renderer, projection, time);
-        wvs.render(renderer, projection, time);
 
         if (showWind && wind != null) {
+            cmdCount = renderer.getCommands().size();
             wind.render(renderer, projection, time);
+            logger.debug("Wind: {} commands", renderer.getCommands().size() - cmdCount);
         }
 
         if (Main.useWater && showWater && water != null) {
+            cmdCount = renderer.getCommands().size();
             water.render(renderer, projection, time);
+            logger.debug("Water/Tide: {} commands", renderer.getCommands().size() - cmdCount);
         }
 
-        // Render waypoints
-        for (Waypoint w : boat.waypoints) {
-            w.render(renderer, projection, time);
-        }
-
-        // Render JIM route
-        if (jim != null) {
+        // Route layers (JIM, last route) - change on route recalculation
+        renderer.setCurrentLayer("route");
+        if (jim != null && (showRoute || showFan)) {
+            cmdCount = renderer.getCommands().size();
+            jim.showRoute = showRoute;
+            jim.showFan = showFan;
             jim.render(renderer, projection, time);
+            logger.debug("JIM (route={}, fan={}): {} commands", showRoute, showFan, renderer.getCommands().size() - cmdCount);
         }
 
-        // Render last route
-        if (lastRoute != null) {
+        if (showLastRoute && lastRoute != null) {
+            cmdCount = renderer.getCommands().size();
             lastRoute.render(renderer, projection, time);
+            logger.debug("LastRoute: {} commands", renderer.getCommands().size() - cmdCount);
+        }
+
+        // UI layers (obstructions, waypoints, boat) - always visible
+        renderer.setCurrentLayer("ui");
+        if (showObstructions) {
+            cmdCount = renderer.getCommands().size();
+            for (Waypoint w : boat.waypoints) {
+                w.render(renderer, projection, time);
+            }
+            logger.debug("Obstructions: {} commands", renderer.getCommands().size() - cmdCount);
         }
 
         // Render boat
+        cmdCount = renderer.getCommands().size();
         boat.render(renderer, projection, time);
+        logger.debug("Boat: {} commands", renderer.getCommands().size() - cmdCount);
+
+        logger.debug("Total render: {} commands", renderer.getCommands().size());
 
         MapController.ViewportInfo viewport = getViewport();
         return new MapController.RenderResponse(renderer.getCommands(), time, viewport);
@@ -510,7 +576,15 @@ public class MapService {
             if (wind != null) {
                 Vector2 w = new Vector2();
                 wind.getValue(pos.scale(phys.degrees), UTC.getTimeInMillis(), w);
-                response.wind = String.format("%.1f m/s E, %.1f m/s N", w.x, w.y);
+                // Convert from m/s components to knots and degrees (true)
+                // w.x = East component, w.y = North component
+                double speedMs = Math.sqrt(w.x * w.x + w.y * w.y);
+                double speedKts = speedMs * 1.94384; // m/s to knots
+                // Wind direction is FROM which it blows, so add 180 degrees
+                double dirRad = Math.atan2(w.x, w.y);
+                double dirDeg = Math.toDegrees(dirRad);
+                dirDeg = (dirDeg + 180 + 360) % 360; // Wind blows FROM this direction
+                response.wind = String.format("%.1f kts / %03.0f°T", speedKts, dirDeg);
             }
         } catch (Exception e) {
             response.wind = "N/A";
@@ -521,16 +595,20 @@ public class MapService {
                 Vector2 t = new Vector2();
                 Vector2 queryPos = pos.scale(phys.degrees);
                 water.getValue(queryPos, UTC.getTimeInMillis(), t);
-                response.tide = String.format("%.3f m/s E, %.3f m/s N", t.x, t.y);
-                // Debug: log all hover calls
-                logger.info("Tide hover query: queryPos=({},{}), result=({},{})", queryPos.x, queryPos.y, t.x, t.y);
+                // Convert from m/s components to knots and degrees (true)
+                // t.x = East component, t.y = North component
+                double speedMs = Math.sqrt(t.x * t.x + t.y * t.y);
+                double speedKts = speedMs * 1.94384; // m/s to knots
+                // Current direction is the direction it FLOWS TO
+                double dirRad = Math.atan2(t.x, t.y);
+                double dirDeg = Math.toDegrees(dirRad);
+                dirDeg = (dirDeg + 360) % 360; // Current flows TO this direction
+                response.tide = String.format("%.2f kts / %03.0f°T", speedKts, dirDeg);
             } else {
-                logger.warn("water is null!");
-                response.tide = "N/A (no water data)";
+                response.tide = "N/A";
             }
         } catch (Exception e) {
             response.tide = "N/A";
-            logger.error("Error getting tide data", e);
         }
 
         try {
@@ -574,6 +652,12 @@ public class MapService {
             case "wind" -> showWind = !showWind;
             case "water", "tide" -> showWater = !showWater;
             case "waves" -> showWaves = !showWaves;
+            case "charts" -> showCharts = !showCharts;
+            case "shoreline" -> showShoreline = !showShoreline;
+            case "route" -> showRoute = !showRoute;
+            case "fan" -> showFan = !showFan;
+            case "lastroute" -> showLastRoute = !showLastRoute;
+            case "obstructions" -> showObstructions = !showObstructions;
         }
     }
 
@@ -585,5 +669,127 @@ public class MapService {
             UTC.getTimeInMillis(),
             format.format(UTC.getTime())
         );
+    }
+
+    /**
+     * Reinitialize the map service (e.g., after config change).
+     * Unlike initialize(), this does NOT reload from config file - it uses
+     * the Main.ROUTE and Main.SCREEN values that were already set by the caller.
+     */
+    public synchronized void reinitialize() {
+        logger.info("Reinitializing MapService with new route...");
+
+        // Clear existing data to free memory BEFORE loading new data
+        jim = null;
+        lastRoute = null;
+        wind = null;
+        water = null;
+        waves = null;
+        boat = null;
+
+        // Request garbage collection to free memory from old GRIB data
+        System.gc();
+
+        try {
+            // Re-parse route with new settings (don't reload config file)
+            boat = new Boat();
+            boat.waypoints = parseRoute(Main.ROUTE);
+
+            // Reload polars for the new route
+            loadPolars();
+
+            // Update screen viewport if SCREEN was changed
+            if (Main.SCREEN != null) {
+                String[] temp = Main.SCREEN.split(" ");
+                float screenTop = Fix.parseLatitude(temp[0]);
+                float screenLeft = Fix.parseLongitude(temp[1]);
+                float screenRight = Fix.parseLongitude(temp[3]);
+                screen.lat1 = screenTop;
+                screen.lon1 = screenLeft;
+                screen.lon2 = screenRight;
+                float lonRange = screenRight - screenLeft;
+                float latRange = lonRange * screen.height / screen.width;
+                screen.lat2 = screenTop - latRange;
+                screen.computeParameters(0);
+                cMap.update(screen);
+                projection = new MercatorProjection(screen);
+            }
+
+            // Center viewport on new departure point
+            if (boat.waypoints.length > 0 && boat.waypoints[0] instanceof Depart) {
+                Depart depart = (Depart) boat.waypoints[0];
+                centerOnPosition(depart.position);
+                logger.info("Centered viewport on departure: ({}, {})",
+                    Math.toDegrees(depart.position.x), Math.toDegrees(depart.position.y));
+            }
+
+            // Compute the new route
+            computeRoute();
+
+            // Reset lastRoute
+            lastRoute = new LastRoute();
+
+            logger.info("Reinitialize complete");
+        } catch (Exception e) {
+            logger.error("Error during reinitialize", e);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Center the viewport on a given position (in radians).
+     * Uses Mercator y-coordinates to ensure proper visual centering.
+     */
+    private void centerOnPosition(Vector2 posRadians) {
+        if (screen == null) return;
+
+        // Convert to degrees
+        float centerLat = (float) Math.toDegrees(posRadians.y);
+        float centerLon = (float) Math.toDegrees(posRadians.x);
+
+        // Calculate current viewport size in longitude (linear in Mercator)
+        float lonRange = screen.lon2 - screen.lon1;
+
+        // Convert latitudes to Mercator y-coordinates for proper centering
+        double y1 = latToMercatorY(screen.lat1);
+        double y2 = latToMercatorY(screen.lat2);
+        double yCenter = latToMercatorY(centerLat);
+        double yRange = y1 - y2;
+
+        // Calculate new Mercator y bounds centered on the target
+        double newY1 = yCenter + yRange / 2;
+        double newY2 = yCenter - yRange / 2;
+
+        // Convert back to geographic latitudes
+        screen.lat1 = (float) mercatorYToLat(newY1);
+        screen.lat2 = (float) mercatorYToLat(newY2);
+        screen.lon1 = centerLon - lonRange / 2;
+        screen.lon2 = centerLon + lonRange / 2;
+
+        screen.computeParameters(0);
+        cMap.update(screen);
+        projection = new MercatorProjection(screen);
+    }
+
+    /** Convert latitude (degrees) to Mercator y-coordinate */
+    private double latToMercatorY(double lat) {
+        double latRad = Math.toRadians(lat);
+        return Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+    }
+
+    /** Convert Mercator y-coordinate to latitude (degrees) */
+    private double mercatorYToLat(double y) {
+        return Math.toDegrees(2 * Math.atan(Math.exp(y)) - Math.PI / 2);
+    }
+
+    /**
+     * Convert screen coordinates to lat/lon.
+     * Returns null if not initialized.
+     */
+    public Vector2 screenToLatLon(double x, double y) {
+        if (!initialized || screen == null) {
+            return null;
+        }
+        return screen.fromPointToLatLng((float) x, (float) y);
     }
 }

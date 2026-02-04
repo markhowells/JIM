@@ -37,12 +37,19 @@ public class DrawCommand {
 
     private Type type;
     private Map<String, Object> params;
+    private String layer;  // Layer tag for client-side caching: "static", "dynamic", "route", "ui"
 
     public DrawCommand() {}
 
     public DrawCommand(Type type, Map<String, Object> params) {
         this.type = type;
         this.params = params;
+    }
+
+    public DrawCommand(Type type, Map<String, Object> params, String layer) {
+        this.type = type;
+        this.params = params;
+        this.layer = layer;
     }
 
     public Type getType() {
@@ -59,6 +66,14 @@ public class DrawCommand {
 
     public void setParams(Map<String, Object> params) {
         this.params = params;
+    }
+
+    public String getLayer() {
+        return layer;
+    }
+
+    public void setLayer(String layer) {
+        this.layer = layer;
     }
 
     // Factory methods for common commands

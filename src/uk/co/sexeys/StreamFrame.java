@@ -75,10 +75,10 @@ class StreamFrame extends JFrame {
 
         LastRoute lastRoute = new LastRoute();
 
-        IDX idx = new IDX(Main.root+File.separator+"charts/tides/HARMONIC");
-        Harmonics harmonics = new Harmonics(Main.root+File.separator+"charts/tides/HARMONIC");
+        IDX idx = new IDX(Main.root+File.separator+"Charts/Tides/HARMONIC");
+        Harmonics harmonics = new Harmonics(Main.root+File.separator+"Charts/Tides/HARMONIC");
 
-        Depth depth = new Depth(Main.root+File.separator+"charts/Bathymetry/GEBCO_2020.dat", 4);
+        Depth depth = new Depth(Main.root+File.separator+"Charts/Bathymetry/GEBCO_2020.dat", 4);
         ArrayList<Boat> undoList = new ArrayList<>();
         Boat boat = new Boat();
         JIM jim;

@@ -90,6 +90,46 @@ This document summarizes the changes made to implement and optimize the browser-
 
 ---
 
+### 5. Config File Editor
+
+**Feature Request:** Add a UI for creating/editing config files with ability to:
+- Select start and destination points by clicking on the chart
+- Enter coordinates manually in Lat/Lon format
+- Choose/load config files through the UI
+- Select GRIB files for wind/tide/waves
+- Select boat polar data
+
+**Implementation:**
+
+#### Backend API (`/api/config`)
+- `GET /list` - List available config YAML files
+- `GET /current` - Get currently loaded configuration
+- `GET /{name}` - Load a specific config file
+- `POST /{name}` - Save a config file
+- `POST /apply` - Apply config and recalculate route
+- `GET /grib-files` - List available GRIB/NetCDF files
+- `GET /polars` - List available polar directories
+- `POST /screen-to-coords` - Convert screen click to lat/lon coordinates
+
+#### Frontend UI
+- Sliding config panel (toggle via "Config" button in header)
+- Form fields for departure position, time, destination
+- Click-to-select mode for picking points on the map
+- Weather file management (add/remove GRIB files)
+- Polar selection dropdown
+- Save/Load config file controls
+- Apply button to recalculate route with new settings
+
+**Files Created:**
+- `src/uk/co/sexeys/ui/web/ConfigController.java` - REST API endpoints
+- `src/uk/co/sexeys/ui/web/ConfigService.java` - Config management logic
+
+**Files Modified:**
+- `src/uk/co/sexeys/ui/web/MapService.java` - Added `reinitialize()` and `screenToLatLon()` methods
+- `src/main/resources/static/index.html` - Added config editor UI and JavaScript
+
+---
+
 ## Current Status
 
 ### Working
@@ -97,6 +137,7 @@ This document summarizes the changes made to implement and optimize the browser-
 - Wave height validation and display
 - HTTP compression enabled
 - Simplified pan/zoom delta handling
+- Config file editor with click-to-select functionality
 
 ### Known Issues
 - Pan/zoom still reported as laggy/unpredictable
@@ -145,12 +186,14 @@ This document summarizes the changes made to implement and optimize the browser-
 ## File Reference
 
 ### Modified Files
-- `src/uk/co/sexeys/ui/web/MapService.java` - GRIB loading, wave validation
+- `src/uk/co/sexeys/ui/web/MapService.java` - GRIB loading, wave validation, reinitialize(), screenToLatLon()
 - `src/uk/co/sexeys/Waves.java` - Wave height validation in render methods
-- `src/main/resources/static/index.html` - Pan/zoom optimization, hover throttling
+- `src/main/resources/static/index.html` - Pan/zoom optimization, hover throttling, config editor UI
 
 ### New Files
 - `src/main/resources/application.properties` - Spring Boot config with compression
+- `src/uk/co/sexeys/ui/web/ConfigController.java` - Config management REST API
+- `src/uk/co/sexeys/ui/web/ConfigService.java` - Config management business logic
 - `src/main/resources/static/index-leaflet.html` - Leaflet.js prototype (untracked)
 - `src/uk/co/sexeys/ui/web/GeoJsonController.java` - GeoJSON endpoints (untracked)
 - `src/uk/co/sexeys/ui/web/GeoJsonService.java` - GeoJSON service (untracked)

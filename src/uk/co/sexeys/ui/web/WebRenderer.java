@@ -17,6 +17,9 @@ public class WebRenderer implements Renderer {
     private int width;
     private int height;
 
+    // Current layer for client-side caching
+    private String currentLayer = "ui";
+
     // Current state for queries
     private String currentFont = "Arial";
     private int currentFontStyle = FONT_PLAIN;
@@ -50,11 +53,29 @@ public class WebRenderer implements Renderer {
     }
 
     /**
+     * Set the current layer for subsequent commands.
+     * Layer tags are used by the client for caching: "static", "dynamic", "route", "ui"
+     */
+    public void setCurrentLayer(String layer) {
+        this.currentLayer = layer;
+    }
+
+    /**
+     * Add a command and tag it with the current layer.
+     */
+    private void addCommand(DrawCommand cmd) {
+        cmd.setLayer(currentLayer);
+        commands.add(cmd);
+    }
+
+    /**
      * Clear accumulated commands and prepare for a new frame.
      */
     public void clear() {
         commands.clear();
-        commands.add(DrawCommand.clear(width, height));
+        DrawCommand cmd = DrawCommand.clear(width, height);
+        cmd.setLayer("ui");
+        commands.add(cmd);
     }
 
     /**
@@ -67,17 +88,17 @@ public class WebRenderer implements Renderer {
 
     @Override
     public void setColor(int r, int g, int b) {
-        commands.add(DrawCommand.setColor(r, g, b));
+        addCommand(DrawCommand.setColor(r, g, b));
     }
 
     @Override
     public void setColor(int r, int g, int b, int alpha) {
-        commands.add(DrawCommand.setColor(r, g, b, alpha));
+        addCommand(DrawCommand.setColor(r, g, b, alpha));
     }
 
     @Override
     public void setStrokeWidth(float width) {
-        commands.add(DrawCommand.setStrokeWidth(width));
+        addCommand(DrawCommand.setStrokeWidth(width));
     }
 
     @Override
@@ -86,39 +107,39 @@ public class WebRenderer implements Renderer {
         for (float f : dashPattern) {
             pattern.add((double) f);
         }
-        commands.add(new DrawCommand(DrawCommand.Type.SET_STROKE_WIDTH,
+        addCommand(new DrawCommand(DrawCommand.Type.SET_STROKE_WIDTH,
             Map.of("width", (double) width, "dashPattern", pattern)));
     }
 
     @Override
     public void setSolidStroke(float width) {
-        commands.add(new DrawCommand(DrawCommand.Type.SET_STROKE_WIDTH,
+        addCommand(new DrawCommand(DrawCommand.Type.SET_STROKE_WIDTH,
             Map.of("width", (double) width, "dashPattern", List.of())));
     }
 
     @Override
     public void drawLine(float x1, float y1, float x2, float y2) {
-        commands.add(DrawCommand.drawLine(x1, y1, x2, y2));
+        addCommand(DrawCommand.drawLine(x1, y1, x2, y2));
     }
 
     @Override
     public void drawRect(float x, float y, float width, float height) {
-        commands.add(DrawCommand.drawRect(x, y, width, height));
+        addCommand(DrawCommand.drawRect(x, y, width, height));
     }
 
     @Override
     public void fillRect(float x, float y, float width, float height) {
-        commands.add(DrawCommand.fillRect(x, y, width, height));
+        addCommand(DrawCommand.fillRect(x, y, width, height));
     }
 
     @Override
     public void drawOval(float x, float y, float width, float height) {
-        commands.add(DrawCommand.drawOval(x, y, width, height));
+        addCommand(DrawCommand.drawOval(x, y, width, height));
     }
 
     @Override
     public void fillOval(float x, float y, float width, float height) {
-        commands.add(DrawCommand.fillOval(x, y, width, height));
+        addCommand(DrawCommand.fillOval(x, y, width, height));
     }
 
     @Override
@@ -129,7 +150,7 @@ public class WebRenderer implements Renderer {
             xs.add((double) xPoints[i]);
             ys.add((double) yPoints[i]);
         }
-        commands.add(DrawCommand.drawPolygon(xs, ys));
+        addCommand(DrawCommand.drawPolygon(xs, ys));
     }
 
     @Override
@@ -140,7 +161,7 @@ public class WebRenderer implements Renderer {
             xs.add((double) xPoints[i]);
             ys.add((double) yPoints[i]);
         }
-        commands.add(DrawCommand.fillPolygon(xs, ys));
+        addCommand(DrawCommand.fillPolygon(xs, ys));
     }
 
     @Override
@@ -151,22 +172,22 @@ public class WebRenderer implements Renderer {
             xs.add((double) xPoints[i]);
             ys.add((double) yPoints[i]);
         }
-        commands.add(DrawCommand.drawPolyline(xs, ys));
+        addCommand(DrawCommand.drawPolyline(xs, ys));
     }
 
     @Override
     public void drawArc(float x, float y, float width, float height, int startAngle, int arcAngle) {
-        commands.add(DrawCommand.drawArc(x, y, width, height, startAngle, arcAngle));
+        addCommand(DrawCommand.drawArc(x, y, width, height, startAngle, arcAngle));
     }
 
     @Override
     public void fillArc(float x, float y, float width, float height, int startAngle, int arcAngle) {
-        commands.add(DrawCommand.fillArc(x, y, width, height, startAngle, arcAngle));
+        addCommand(DrawCommand.fillArc(x, y, width, height, startAngle, arcAngle));
     }
 
     @Override
     public void drawText(String text, float x, float y) {
-        commands.add(DrawCommand.drawString(text, x, y));
+        addCommand(DrawCommand.drawString(text, x, y));
     }
 
     @Override
@@ -174,7 +195,7 @@ public class WebRenderer implements Renderer {
         this.currentFont = fontName;
         this.currentFontStyle = style;
         this.currentFontSize = size;
-        commands.add(DrawCommand.setFont(fontName, style, size));
+        addCommand(DrawCommand.setFont(fontName, style, size));
     }
 
     @Override
@@ -192,7 +213,7 @@ public class WebRenderer implements Renderer {
     @Override
     public void drawImage(String imageKey, float destX1, float destY1, float destX2, float destY2,
                           int srcX1, int srcY1, int srcX2, int srcY2) {
-        commands.add(new DrawCommand(DrawCommand.Type.DRAW_IMAGE, Map.of(
+        addCommand(new DrawCommand(DrawCommand.Type.DRAW_IMAGE, Map.of(
             "imageKey", imageKey,
             "destX1", (double) destX1,
             "destY1", (double) destY1,
@@ -218,7 +239,7 @@ public class WebRenderer implements Renderer {
     @Override
     public void save() {
         stateStack.push(new RendererState(currentFont, currentFontStyle, currentFontSize));
-        commands.add(DrawCommand.save());
+        addCommand(DrawCommand.save());
     }
 
     @Override
@@ -229,31 +250,31 @@ public class WebRenderer implements Renderer {
             currentFontStyle = state.fontStyle;
             currentFontSize = state.fontSize;
         }
-        commands.add(DrawCommand.restore());
+        addCommand(DrawCommand.restore());
     }
 
     @Override
     public void setClip(float x, float y, float width, float height) {
-        commands.add(DrawCommand.setClip(x, y, width, height));
+        addCommand(DrawCommand.setClip(x, y, width, height));
     }
 
     @Override
     public void clearClip() {
-        commands.add(DrawCommand.clearClip());
+        addCommand(DrawCommand.clearClip());
     }
 
     @Override
     public void translate(float dx, float dy) {
-        commands.add(DrawCommand.translate(dx, dy));
+        addCommand(DrawCommand.translate(dx, dy));
     }
 
     @Override
     public void rotate(double angle) {
-        commands.add(DrawCommand.rotate(angle));
+        addCommand(DrawCommand.rotate(angle));
     }
 
     @Override
     public void scale(float sx, float sy) {
-        commands.add(DrawCommand.scale(sx, sy));
+        addCommand(DrawCommand.scale(sx, sy));
     }
 }

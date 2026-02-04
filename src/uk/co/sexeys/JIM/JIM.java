@@ -28,6 +28,10 @@ public abstract class JIM implements Renderable {
     List<Agent> newAgents;
     public Route route;
 
+    // Visibility flags for rendering (set by MapService before render)
+    public boolean showRoute = true;
+    public boolean showFan = true;
+
     public JIM(){}
 
     public void Search(long cutoffTime) throws Exception{}
@@ -170,46 +174,53 @@ public abstract class JIM implements Renderable {
         Vector2 p, p0;
 
         renderer.setColor(Colors.BLACK);
-        renderer.setStrokeWidth(1);
-        for (Agent X : newAgents) {
-            if (X == keyAgent)
-                renderer.setStrokeWidth(3);
-            else
-                renderer.setStrokeWidth(1);
-            Agent Y = X;
+
+        // Draw fan (all agent tracks) if enabled
+        if (showFan) {
+            renderer.setStrokeWidth(1);
+            for (Agent X : newAgents) {
+                if (X == keyAgent) continue; // Skip keyAgent here, draw separately if showRoute
+                Agent Y = X;
+                while (Y.previousAgent != null) {
+                    p0 = projection.fromRadiansToPoint(Y.position);
+                    p = projection.fromRadiansToPoint(Y.previousAgent.position);
+                    renderer.drawLine(p0.x, p0.y, p.x, p.y);
+                    Y = Y.previousAgent;
+                }
+            }
+        }
+
+        // Draw route (keyAgent track) if enabled
+        if (showRoute) {
+            renderer.setStrokeWidth(3);
+            Agent Y = keyAgent;
             while (Y.previousAgent != null) {
                 p0 = projection.fromRadiansToPoint(Y.position);
                 p = projection.fromRadiansToPoint(Y.previousAgent.position);
                 renderer.drawLine(p0.x, p0.y, p.x, p.y);
                 Y = Y.previousAgent;
             }
+
+            // Draw current position marker on route
+            Y = keyAgent;
+            while (Y.previousAgent != null) {
+                if (Y.previousAgent.time <= time)
+                    break;
+                if (Y.previousAgent.previousAgent == null)
+                    break;
+                Y = Y.previousAgent;
+            }
+            if (Y.previousAgent != null) {
+                p0 = projection.fromRadiansToPoint(Y.position);
+                p = projection.fromRadiansToPoint(Y.previousAgent.position);
+                Vector2 dp = p0.minus(p);
+                float t = (float) (time - Y.previousAgent.time) / (float) (Y.time - Y.previousAgent.time);
+                p0 = p.plus(dp.scale(t));
+                renderer.drawLine(p0.x, p0.y - 10, p0.x, p0.y + 10);
+                renderer.drawLine(p0.x - 10, p0.y, p0.x + 10, p0.y);
+            }
         }
 
-        renderer.setStrokeWidth(3);
-        Agent Y = keyAgent;
-        while (Y.previousAgent != null) {
-            p0 = projection.fromRadiansToPoint(Y.position);
-            p = projection.fromRadiansToPoint(Y.previousAgent.position);
-            renderer.drawLine(p0.x, p0.y, p.x, p.y);
-            Y = Y.previousAgent;
-        }
-
-        Y = keyAgent;
-        while (Y.previousAgent != null) {
-            if (Y.previousAgent.time <= time)
-                break;
-            if (Y.previousAgent.previousAgent == null)
-                break;
-            Y = Y.previousAgent;
-        }
-        if (Y.previousAgent == null) return;
-        p0 = projection.fromRadiansToPoint(Y.position);
-        p = projection.fromRadiansToPoint(Y.previousAgent.position);
-        Vector2 dp = p0.minus(p);
-        float t = (float) (time - Y.previousAgent.time) / (float) (Y.time - Y.previousAgent.time);
-        p0 = p.plus(dp.scale(t));
-        renderer.drawLine(p0.x, p0.y - 10, p0.x, p0.y + 10);
-        renderer.drawLine(p0.x - 10, p0.y, p0.x + 10, p0.y);
         renderer.setStrokeWidth(1);
     }
 

@@ -107,14 +107,21 @@ public abstract class Water implements Renderable {
         Vector2 topLeft = projection.getTopLeft();
         Vector2 bottomRight = projection.getBottomRight();
 
-        double dx = (bottomRight.x - topLeft.x) / 20;
-        double dy = (topLeft.y - bottomRight.y) / 20;
+        // Calculate grid spacing to get approximately 20 arrows across
+        double gridSpacing = (bottomRight.x - topLeft.x) / 20;
+
+        // Round starting positions to nearest grid point (anchored to fixed geographic positions)
+        double startLon = Math.floor(topLeft.x / gridSpacing) * gridSpacing;
+        double startLat = Math.floor(bottomRight.y / gridSpacing) * gridSpacing;
+
         Vector2 v = new Vector2();
         SOURCE source;
         renderer.setColor(Colors.BLUE);
 
-        for (double i = topLeft.x + dx; i < bottomRight.x; i += dx) {
-            for (double j = bottomRight.y + dy; j < topLeft.y; j += dy) {
+        for (double i = startLon; i <= bottomRight.x; i += gridSpacing) {
+            if (i < topLeft.x) continue; // Skip if before left edge
+            for (double j = startLat; j <= topLeft.y; j += gridSpacing) {
+                if (j < bottomRight.y) continue; // Skip if below bottom edge
                 Vector2 p = projection.fromLatLngToPoint(j, i);
                 source = getValue(new Vector2((float) i, (float) j), time, v);
 
